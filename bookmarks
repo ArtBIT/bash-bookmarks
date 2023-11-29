@@ -184,7 +184,7 @@ fuzzy_file() {
     fi
     file=$(echo "$files" | fzf)
     [ -z "$file" ] && die "No file selected"
-    echo "$BOOKMARKS_DIR/$file"
+    echo "$file"
 }
 
 is_url_accessible() {
@@ -265,8 +265,8 @@ create_bookmark() {
         local name="$title"
     fi
 
-    mkdir -p "data/$category"
-    local filename="data/$category/$(slugify "$name").md"
+    mkdir -p "$category"
+    local filename="$category/$(slugify "$name").md"
     if [ -f "$filename" ]; then
         die "File already exists: $filename, skipping"
     fi
@@ -330,7 +330,7 @@ bookmarks() {
             ;;
 
         *)
-            local file=$(fuzzy_file)
+            local file=$(fuzzy_file "$1")
             [ -z "$file" ] && die "No file found for tag: $2"
             [ -f "$file" ] && display_markdown "$file"
             ;;

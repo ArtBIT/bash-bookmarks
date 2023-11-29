@@ -9,6 +9,10 @@ Over the years I've accumulated over 10k bookmarks in Pocket. Navigating that am
 
 To make it work, I've created a custom protocol handler for `bookmarks://...` uri scheme, and a bookmaklet that will allow me to quickly add bookmarks to the database from the browser.
 
+# Demo
+
+[![asciicast](https://asciinema.org/a/czTpD0PD9kA620X49oaj3iYbt)](https://asciinema.org/a/czTpD0PD9kA620X49oaj3iYbt)
+
 # Dependencies
 
 - [fzf](https://github.com/junegunn/fzf)
