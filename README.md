@@ -11,7 +11,7 @@ To make it work, I've created a custom protocol handler for `bookmarks://...` ur
 
 # Demo
 
-[![asciicast](https://asciinema.org/a/czTpD0PD9kA620X49oaj3iYbt)](https://asciinema.org/a/czTpD0PD9kA620X49oaj3iYbt)
+[![asciicast](https://asciinema.org/a/czTpD0PD9kA620X49oaj3iYbt.svg)](https://asciinema.org/a/czTpD0PD9kA620X49oaj3iYbt)
 
 # Dependencies
 
