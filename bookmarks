@@ -1,0 +1,347 @@
+#!/bin/env bash
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+# This is a bash script that allows you to manage your bookmarks from the command line.
+# It is meant to be used as a standalone script, but you can also source it from your .bashrc or .zshrc
+# and use it as a library.
+#
+# Dependencies:
+#   fzf             For fuzzy finding. Install it with your package manager or from https://github.com/junegunn/fzf
+#   glow            For displaying markdown files. Install it with your package manager or from https://github.com/charmbracelet/glow
+#   fdfind          For finding files. Install it with your package manager or from https://github.com/sharkdp/fd
+#   curl            For checking if a URL is working / fetching the title of a URL
+#
+# General unix tools:
+#   xargs           For passing arguments to glow
+#   iconv           For removing accents from strings
+#   sed             For slugifying strings
+#   grep            For filtering files by content
+#
+
+# Configuration
+# -------------
+# You can override these variables in your .bashrc or .zshrc
+# Specify the editor you want to use to edit your bookmarks
+MARKDOWN_EDITOR=${EDITOR:-"vim"}
+# Specify the viewer you want to use to view your bookmarks
+MARKDOWN_VIEWER=${MARKDOWN_VIEWER:-"glow"}
+# Specify the directory where your bookmarks are stored
+BOOKMARKS_DIR=${BOOKMARKS_DIR:-"$HOME/Documents/bookmarks/data"}
+
+# We want to be able to exit the script with Ctrl+C without leaving the terminal in a weird state
+# So we trap the EXIT signal and reset the terminal
+trap "" EXIT
+
+bookmarks_usage() {
+    echo "Usage: bookmarks [command] [options]"
+    echo ""
+    echo "Commands:"
+    echo "  edit [query]    Edit a bookmark file [ query is optional, if provided, it will be used to filter bookmarks ]"
+    echo "  open [query]    Open a bookmark file in the browser [ query is optional, if provided, it will be used to filter bookmarks ]"
+    echo "  add             Add a new bookmark [ options: --title, --url, --category, --tags, --name ]"
+    echo "  help            Show this help"
+    echo ""
+    echo "Options:"
+    echo "  --title         Title of the bookmark"
+    echo "  --url           URL of the bookmark"
+    echo "  --category      Category of the bookmark"
+    echo "  --tags          Tags of the bookmark"
+    echo "  --name          Name of the bookmark file"
+    echo ""
+    echo "Examples:"
+    echo "  bookmarks edit"
+    echo "  bookmarks edit \"my query\""
+    echo "  bookmarks open"
+    echo "  bookmarks open \"my query\""
+    echo "  bookmarks add --title \"My title\" --url \"https://example.com\" --category \"My category\" --tags \"tag1,tag2\" --name \"my-bookmark\""
+}
+
+# Transform the string debug level to integer
+log_level_num() {
+    local level="$1"
+    case "$level" in
+        debug)
+            echo 7
+            ;;
+        verbose)
+            echo 6
+            ;;
+        info)
+            echo 5
+            ;;
+        warning)
+            echo 3
+            ;;
+        error)
+            echo 2
+            ;;
+        critical)
+            echo 1
+            ;;
+        *)
+            echo 1
+            ;;
+    esac
+}
+
+# Log a message to stderr and to the log file
+log() {
+    local level="$1"
+    shift
+    local level_num=$(log_level_num "$level")
+    local debug_level_num=$(log_level_num "$DEBUG")
+
+    if [ "$level_num" -gt "$debug_level_num" ]; then
+        return 0
+    fi
+
+    echo "[$level] $@" >&2
+    echo "[$(date +"%Y-%m-%d %H:%M:%S")] $@" >> $SCRIPT_DIR/bookmarks.log
+}
+
+# Log a message to stderr and to the log file and exit with error
+die() {
+    log critical "$@" >&2
+    exit 1
+}
+
+# Decode URL encoded string
+urldecode() {
+    echo "$1" | sed -e 's/%\([0-9A-F][0-9A-F]\)/\\\\\\x\1/g' | xargs echo -e
+}
+
+# Get the OS name
+get_os() {
+    local os=$(uname -s)
+    case "$os" in
+        Linux)
+            echo "linux"
+            ;;
+        Darwin)
+            echo "mac"
+            ;;
+        CYGWIN*|MINGW32*|MSYS*|MINGW*)
+            echo "windows"
+            ;;
+        *)
+            echo "unknown"
+            ;;
+    esac
+}
+
+# Transform a string to a slug
+# Example: "My title - Söme äccents" -> "my-title-some-accents"
+slugify() {
+    result="$@"
+    # urldecode urlencoded string
+    result=$(urldecode "$result")
+
+    # remove accents
+    result=$(echo "$result" | iconv -f utf8 -t ascii//TRANSLIT)
+
+    # slugify a string
+    result=$(echo "$result" | tr '[:upper:]' '[:lower:]' | sed -e 's/[^[:alnum:]]/-/g' -e 's/^-+\|-+$//g' -e 's/-\+/-/g')
+
+    echo $result;
+}
+
+display_markdown() {
+    [ -z "$1" ] && die "No file provided"
+    echo "$1" | xargs $MARKDOWN_VIEWER
+}
+
+edit_markdown() {
+    [ -z "$1" ] && die "No file provided"
+    log info "Opening $1 in $MARKDOWN_EDITOR..."
+    "$MARKDOWN_EDITOR" "$1"
+}
+
+open_in_browser() {
+    [ -z "$1" ] && die "No URL provided"
+
+    log info "Opening $1 in browser..."
+    local os=$(get_os)
+    case "$os" in
+        linux)
+            xdg-open "$1"
+            ;;
+        mac)
+            open "$1"
+            ;;
+        *)
+            die "Unsuported OS: $os"
+            ;;
+    esac
+}
+
+# Search the bookmarks directory for a file using fzf
+fuzzy_file() {
+    local files=$(fdfind --type f -e md .)
+    # if "$1" is not empty, filter files by whether file contents contains "$1"
+    if [ ! -z "$1" ]; then
+        echo "Filtering " >&2
+        files=$(echo "$files" | xargs grep -l "$1")
+    fi
+    file=$(echo "$files" | fzf)
+    [ -z "$file" ] && die "No file selected"
+    echo "$BOOKMARKS_DIR/$file"
+}
+
+is_url_accessible() {
+    local url="$1"
+    curl -s --head "$url" | head -n 1 | grep "HTTP/[0-9.]\+ [23].." > /dev/null
+    return $?
+}
+
+# Create a new bookmark
+# Options:
+#   --title         Title of the bookmark
+#   --url           URL of the bookmark
+#   --category      Default: unsorted, the subdirectory of the bookmarks directory where the bookmark will be saved
+#   --tags          Comma separated list of tags
+#   --name          Name of the bookmark file
+#
+# If --title or --url is not provided, the user will be prompted for them
+# If --name is not provided, it will default to a slugified version of the title
+create_bookmark() {
+    local category="unsorted"
+    while true; do
+        case "$1" in
+            --title)
+                shift
+                local title="$1"
+                shift
+                ;;
+            --url)
+                shift
+                local url="$1"
+                shift
+                ;;
+            --category)
+                shift
+                category="$1"
+                shift
+                ;;
+            --tags)
+                shift
+                local tags="$1"
+                shift
+                ;;
+            --name)
+                shift
+                local name="$1"
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    # if url is urlencoded decode it
+    url=$(urldecode "$url")
+
+    # If url is not working skip it
+    if ! is_url_accessible "$url"; then
+        die "URL is not working: $url, skipping"
+    fi
+
+    # If title is empty, try to get it from URL
+    if [ -z "$title" ]; then
+        title=$(curl -s "$url" | grep -oP '(?<=<title>).*?(?=</title>)')
+    fi
+
+    # If title is still empty infer it from the last part of the URL
+    if [ -z "$title" ]; then
+        title=$(echo "$url" | grep -oP '(?<=/)[^/]*$')
+    fi
+    title=$(urldecode "$title")
+
+    [ -z "$title" ]    && die "Title cannot be empty for $url"
+    [ -z "$url" ]      && die "URL cannot be empty for $title"
+    [ -z "$category" ] && die "Category cannot be empty for $title"
+
+    if [ -z "$name" ]; then
+        local name="$title"
+    fi
+
+    mkdir -p "data/$category"
+    local filename="data/$category/$(slugify "$name").md"
+    if [ -f "$filename" ]; then
+        die "File already exists: $filename, skipping"
+    fi
+
+
+    # Write template to file
+    cat > "$filename" <<EOF
+---
+title: $title
+url: $url
+tags: [$tags]
+---
+[$url]($url)
+EOF
+    echo "$filename"
+}
+
+
+# Main bookmarks function
+# Usage: bookmarks <command> [args]
+# Commands:
+#   add         Add a new bookmark
+#   paste      paste a new bookmark
+#   edit        Edit a bookmark
+#   open        Open a bookmark
+
+bookmarks() {
+    pushd "$BOOKMARKS_DIR" &>/dev/null
+
+    case "$1" in
+        add)
+            shift
+            log info "Adding bookmark"
+            create_bookmark "$@"
+            if [ "$?" -ne 0 ]; then
+                return "$?"
+            fi
+            ;;
+
+        edit)
+            shift
+            local filename=$(fuzzy_file "$1")
+            [ -z "$filename" ] && die "No file found for tag: $1"
+
+            edit_markdown "$filename"
+            ;;
+
+        open)
+            shift
+            local file=$(fuzzy_file "$1")
+            [ -z "$file" ] && die "No file found for tag: $1"
+
+            local url=$(grep -oP '(?<=url: ).*' "$file")
+            open_in_browser "$url"
+            ;;
+
+        help)
+            shift
+            bookmarks_usage
+            return 0
+            ;;
+
+        *)
+            local file=$(fuzzy_file)
+            [ -z "$file" ] && die "No file found for tag: $2"
+            [ -f "$file" ] && display_markdown "$file"
+            ;;
+    esac
+
+    popd &>/dev/null
+    return 0
+}
+
+# if not sourced, run main
+if [ "$0" = "$BASH_SOURCE" ]; then
+    bookmarks "$@"
+fi
+

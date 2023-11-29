@@ -1,0 +1,34 @@
+#! /usr/bin/env bash
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+if [ ! -z "$1" ]; then
+    # extract the protocol
+    protocol="$(echo $1 | grep :// | sed -e's,^\(.*://\).*,\1,g')"
+
+    # remove the protocol
+    payload=$(echo $1 | sed -e s,$protocol,,g)
+
+    query=$(echo "$payload" | sed 's,^.*?,,')
+
+    # extract the GET params from the query string
+    # get params are in the form of key=value
+    # concatenated with &
+    declare -A params
+    for param in $(echo "$query" | tr '&' '\n'); do
+        key=$(echo "$param" | cut -f1 -d=)
+        value=$(echo "$param" | cut -f2 -d=)
+        params["$key"]="$value"
+    done
+
+    # extract title, url, category and tags from the params
+    title="${params['title']}"
+    url="${params['url']}"
+    category="${params['category']}"
+    tags="${params['tags']}"
+    # remove the square brackets from the tags
+    tags="${tags:1:${#tags}-2}"
+
+    #$SCRIPT_DIR/bookmarks add --title "$title" --url "$url" --category "$category" --tags "$tags"
+    gnome-terminal -- /bin/bash -c "$SCRIPT_DIR/bookmarks add --title \"$title\" --url \"$url\" --category \"$category\" --tags \"$tags\"; exec /bin/bash"
+fi
+
