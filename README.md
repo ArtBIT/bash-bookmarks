@@ -9,7 +9,13 @@ Over the years I've accumulated over 10k bookmarks in Pocket. Navigating that am
 
 To make it work, I've created a custom protocol handler for `bookmarks://...` uri scheme, and a bookmaklet that will allow me to quickly add bookmarks to the database from the browser.
 
-# Creating custom protocol handlers in Ubuntu
+# Dependencies
+
+- [fzf](https://github.com/junegunn/fzf)
+- [glow](https://github.com/charmbracelet/glow)
+- [fd](https://github.com/sharkdp/fd)
+
+# Installation
 
 Let's create a `bookmarks://...` protocol handler in Ubuntu as an example
 
