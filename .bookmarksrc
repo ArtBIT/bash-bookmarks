@@ -8,3 +8,6 @@ alias bo="b open"
 alias ba="b add"
 alias bd="b delete"
 alias bp="b paste"
+function bcd() {
+    cd "$(b "$@")"
+}

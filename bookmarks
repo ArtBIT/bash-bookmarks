@@ -485,7 +485,7 @@ bookmarks() {
         *)
             local file=$(fuzzy_file "$1")
             [ -z "$file" ] && die "No file found for tag: $2"
-            [ -f "$file" ] && display_markdown "$file"
+            [ -f "$file" ] && cat "$file" | grep ^uri | cut -d ' ' -f 2
             result=$?
             ;;
     esac
