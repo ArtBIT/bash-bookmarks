@@ -91,7 +91,7 @@ log_level_num() {
 
 # Log a message to stderr and to the log file
 log() {
-    DEBUG=${DEBUG:-"debug"}
+    DEBUG=${DEBUG:-"info"}
     local level="$1"
     shift
     local level_num=$(log_level_num "$level")
