@@ -26,8 +26,6 @@ Be sure to source the `.bookmarksrc` file in your `.bashrc` or `.zshrc` file. Th
 
 To quickly bookmark the current directory by typing `ba .` or `ba $(pwd)`.
 
-When bookmarking a file, you can bookmark a specific line in a file by adding `#L<line_number>` to the URI. This will open the file in the editor and jump to the specified line.
-
 You can also paste a URI from the clipboard by typing `ba paste`.
 
 
