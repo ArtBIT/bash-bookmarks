@@ -15,8 +15,18 @@ For an example, I have a bookmark called `bash-bookmarks` which points to the `R
 
 ```
 ba --uri ../bash-bookmarks/README.md --title "bash-bookmarks"
-be bash-bookmarks
+
+# opens the URI using the system handler
+bo bash-bookmarks
 ```
+
+# TIPS:
+
+You can also quickly bookmark the current directory by typing `ba .` or `ba $(pwd)`.
+
+Additionally, you can bookmark a specific line in a file by adding `#L<line_number>` to the URI. This will open the file in the editor and jump to the specified line.
+
+You can also paste a URI from the clipboard by typing `ba paste`.
 
 
 # Demo
