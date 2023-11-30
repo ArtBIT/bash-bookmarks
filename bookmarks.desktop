@@ -1,12 +1,12 @@
 [Desktop Entry]
-Encoding=UTF-8
+Version=1.0
+Type=Application
 Name=Bookmarks Manager
 Comment=Bash Bookmarks Manager
-Exec=/home/artbit/Documents/bookmarks/bookmarks-uri-handler %U
-Terminal=true
-Type=Application
+Exec=/home/artbit/Documents/bookmarks/bookmarks-uri-handler %u
+Terminal=false
 Icon=/usr/src/vim/runtime/vim48x48.xpm
-Categories=Application;Utility;TextEditor;
-MimeType=text/plain;x-scheme-handler/bookmark;
+Categories=Application;Network;
+MimeType=x-scheme-handler/bookmarks;
 StartupNotify=true
-StartupWMClass=Bookmark
+StartupWMClass=Bookmarks

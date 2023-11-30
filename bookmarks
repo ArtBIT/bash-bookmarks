@@ -36,17 +36,20 @@ bookmarks_usage() {
     echo "Usage: bookmarks [command] [options]"
     echo ""
     echo "Commands:"
-    echo "  edit [query]    Edit a bookmark file [ query is optional, if provided, it will be used to filter bookmarks ]"
-    echo "  open [query]    Open a bookmark file in the browser [ query is optional, if provided, it will be used to filter bookmarks ]"
-    echo "  add             Add a new bookmark [ options: --title, --uri, --category, --tags, --name ]"
     echo "  help            Show this help"
+    echo "  add             Add a new bookmark [ options: --title, --uri, --category, --tags, --name ]"
+    echo "  edit [query]    Edit a bookmark file"
+    echo "  open [query]    Open a bookmark file in the browser"
+    echo "  paste           Paste a bookmark from the clipboard"
+    echo "  delete [query]  Delete a bookmark file"
     echo ""
     echo "Options:"
     echo "  --title         Title of the bookmark"
-    echo "  --uri           URI of the bookmark"
+    echo "  --uri           URI of the bookmark, can be a URL or a file path"
     echo "  --category      Category of the bookmark"
     echo "  --tags          Tags of the bookmark"
     echo "  --name          Name of the bookmark file"
+    echo "  [query]         Query to filter bookmarks, you can filter by title, tags, category, etc."
     echo ""
     echo "Examples:"
     echo "  bookmarks edit"
@@ -54,6 +57,8 @@ bookmarks_usage() {
     echo "  bookmarks open"
     echo "  bookmarks open \"my query\""
     echo "  bookmarks add --title \"My title\" --uri \"https://example.com\" --category \"My category\" --tags \"tag1,tag2\" --name \"my-bookmark\""
+    echo "  bookmarks add --uri ~/Downloads # add a bookmark to a local directory"
+    echo "  bookmarks paste # add a bookmark from the clipboard"
 }
 
 # Transform the string debug level to integer
@@ -86,6 +91,7 @@ log_level_num() {
 
 # Log a message to stderr and to the log file
 log() {
+    DEBUG=${DEBUG:-"debug"}
     local level="$1"
     shift
     local level_num=$(log_level_num "$level")
@@ -128,6 +134,45 @@ get_os() {
             echo "unknown"
             ;;
     esac
+}
+
+get_clipboard() {
+    local os=$(get_os)
+    case "$os" in
+        linux)
+            xclip -selection clipboard -o
+            ;;
+        mac)
+            pbpaste
+            ;;
+        windows)
+            powershell.exe -command "Get-Clipboard"
+            ;;
+        *)
+            die "Unsupported OS"
+            ;;
+    esac
+}
+
+get_title_from_uri() {
+    local uri="$1"
+    [ -z "$uri" ] && die "No URI provided"
+
+    if is_url "$uri"; then
+        curl -s "$uri" | grep -oP '(?<=<title>).*?(?=</title>)'
+    elif is_file "$uri"; then
+        # if file is pdf or a document try to get the title from the metadata
+        local extension=$(echo "$uri" | grep -oP '\.[a-zA-Z0-9]+$')
+        if [ "$extension" == ".pdf" ]; then
+            pdftk "$uri" dump_data | grep -oP '(?<=InfoValue: ).*?(?=\\n)'
+        elif [ "$extension" == ".doc" ] || [ "$extension" == ".docx" ]; then
+            catdoc "$uri" | grep -oP '(?<=Title:).*?(?=\\n)'
+        else
+            basename "$uri"
+        fi
+    else
+        die "Invalid URI"
+    fi
 }
 
 # Transform a string to a slug
@@ -175,7 +220,7 @@ open_uri() {
 }
 
 os_open() {
-    [ -z "$1" ] && die "No URL provided"
+    [ -z "$1" ] && die "No URI provided"
 
     log info "Opening $1 in browser..."
     local os=$(get_os)
@@ -204,10 +249,40 @@ fuzzy_file() {
     echo "$file"
 }
 
-is_url_accessible() {
+is_url() {
     local url="$1"
-    curl -s --head "$url" | head -n 1 | grep "HTTP/[0-9.]\+ [23].." > /dev/null
-    return $?
+    [[ "$url" =~ ^https?:// ]]
+}
+
+is_file() {
+    local uri="$1"
+    is_local_file "$uri" || is_file_uri "$uri"
+}
+
+is_file_uri() {
+    local uri="$1"
+    [[ "$uri" =~ ^file:// ]]
+}
+
+is_local_file() {
+    local uri="$1"
+    [[ "$uri" =~ ^/ ]] || [[ "$uri" =~ ^~ ]]
+}
+
+is_uri_accessible() {
+    local uri="$1"
+    if is_url "$uri"; then
+        http_status=$(curl -s --head "$uri" | head -n 1 | grep "HTTP/[0-9.]\+ [12345].." | cut -d " " -f 2)
+        log debug "HTTP status code: $http_status"
+        # check if status code is 2xx or 3xx
+        [[ "$http_status" =~ ^[23] ]] && return 0 || return 1
+    elif is_file "$uri"; then
+        # check if readable
+        [ -r "${uri#file://}" ]
+        return $?
+    fi
+    # unknown URI scheme, return false
+    return 1
 }
 
 # Create a new bookmark
@@ -221,7 +296,7 @@ is_url_accessible() {
 # If --title or --uri is not provided, the user will be prompted for them
 # If --name is not provided, it will default to a slugified version of the title
 create_bookmark() {
-    local category="unsorted"
+    local category=""
     while true; do
         case "$1" in
             --title)
@@ -232,6 +307,13 @@ create_bookmark() {
             --uri)
                 shift
                 local uri=$(urldecode "$1")
+                if is_file "$uri"; then
+                    # expand ~ character
+                    if [[ "$uri" =~ ^~ ]]; then
+                        uri="${uri/#\~/$HOME}"
+                    fi
+                    uri=$(realpath "${uri#file://}")
+                fi
                 shift
                 ;;
             --category)
@@ -255,17 +337,25 @@ create_bookmark() {
         esac
     done
 
-    # If url is not working skip it
-    if ! is_url_accessible "$uri"; then
+    # If uri is not working skip it
+    if ! is_uri_accessible "$uri"; then
         die "URI is not accessible: $uri"
+    fi
+
+    if [ -z "$category" ]; then
+        if is_local_file "$uri"; then
+            category="files"
+        else
+            category="unsorted"
+        fi
     fi
 
     # If title is empty, try to get it from URI
     if [ -z "$title" ]; then
-        title=$(curl -s "$uri" | grep -oP '(?<=<title>).*?(?=</title>)')
+        title=$(get_title_from_uri "$uri")
     fi
 
-    # If title is still empty infer it from the last part of the URL
+    # If title is still empty infer it from the last part of the URI
     if [ -z "$title" ]; then
         title=$(echo "$uri" | grep -oP '(?<=/)[^/]*$')
     fi
@@ -308,20 +398,39 @@ EOF
 # Usage: bookmarks <command> [args]
 # Commands:
 #   add         Add a new bookmark
-#   paste      paste a new bookmark
+#   paste       Paste a new bookmark from the clipboard
 #   edit        Edit a bookmark
 #   open        Open a bookmark
+#   delete      Delete a bookmark
 
 bookmarks() {
     pushd "$BOOKMARKS_DIR" &>/dev/null
+    local result=0
 
     case "$1" in
+        paste)
+            shift
+            local uri=$(get_clipboard)
+            if [ -z "$uri" ]; then
+                die "Clipboard is empty"
+            fi
+            log info "Adding bookmark from clipboard..."
+            create_bookmark --uri "$uri" "$@"
+            result=$?
+            ;;
+
         add)
             shift
-            log info "Adding bookmark..."
-            create_bookmark "$@"
-            if [ "$?" -ne 0 ]; then
-                return "$?"
+
+            # if there is only one argument and it is a valid URI, use it as the URI
+            if [ "$#" -eq 1 ] && is_uri_accessible "$1"; then
+                log info "Adding quick bookmark..."
+                create_bookmark --uri "$1"
+                result=$?
+            else
+                log info "Adding bookmark..."
+                create_bookmark "$@"
+                result=$?
             fi
             ;;
 
@@ -331,6 +440,7 @@ bookmarks() {
             [ -z "$filename" ] && die "No file found for tag: $1"
 
             edit_markdown "$filename"
+            result=$?
             ;;
 
         open)
@@ -340,23 +450,41 @@ bookmarks() {
 
             local uri=$(grep -oP '(?<=uri: ).*' "$file")
             open_uri "$uri"
+            result=$?
+            ;;
+
+        delete)
+            shift
+            local file=$(fuzzy_file "$1")
+            [ -z "$file" ] && die "No file found for tag: $1"
+
+            log info "Deleting bookmark: $file"
+            # confirm before deleting
+            if ! confirm "Are you sure you want to delete $file?"; then
+                log info "Aborting"
+            else
+                # delete file
+                rm "$file"
+                result=$?
+            fi
             ;;
 
         help)
             shift
             bookmarks_usage
-            return 0
+            result=$?
             ;;
 
         *)
             local file=$(fuzzy_file "$1")
             [ -z "$file" ] && die "No file found for tag: $2"
             [ -f "$file" ] && display_markdown "$file"
+            result=$?
             ;;
     esac
 
     popd &>/dev/null
-    return 0
+    return $result
 }
 
 # if not sourced, run main
