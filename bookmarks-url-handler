@@ -25,8 +25,11 @@ if [ ! -z "$1" ]; then
     url="${params['url']}"
     category="${params['category']}"
     tags="${params['tags']}"
-    # remove the square brackets from the tags
-    tags="${tags:1:${#tags}-2}"
+    # check if the tags are enclosed in square brackets
+    if [[ $tags == \[*\] ]]; then
+        # remove the square brackets from the tags
+        tags="${tags:1:${#tags}-2}"
+    fi
 
     #$SCRIPT_DIR/bookmarks add --title "$title" --url "$url" --category "$category" --tags "$tags"
     gnome-terminal -- /bin/bash -c "$SCRIPT_DIR/bookmarks add --title \"$title\" --url \"$url\" --category \"$category\" --tags \"$tags\"; exec /bin/bash"

@@ -133,8 +133,6 @@ get_os() {
 # Example: "My title - Söme äccents" -> "my-title-some-accents"
 slugify() {
     result="$@"
-    # urldecode urlencoded string
-    result=$(urldecode "$result")
 
     # remove accents
     result=$(echo "$result" | iconv -f utf8 -t ascii//TRANSLIT)
@@ -208,27 +206,27 @@ create_bookmark() {
         case "$1" in
             --title)
                 shift
-                local title="$1"
+                local title=$(urldecode "$1")
                 shift
                 ;;
             --url)
                 shift
-                local url="$1"
+                local url=$(urldecode "$1")
                 shift
                 ;;
             --category)
                 shift
-                category="$1"
+                category=$(urldecode "$1")
                 shift
                 ;;
             --tags)
                 shift
-                local tags="$1"
+                local tags=$(urldecode "$1")
                 shift
                 ;;
             --name)
                 shift
-                local name="$1"
+                local name=$(urldecode "$1")
                 shift
                 ;;
             *)
@@ -236,9 +234,6 @@ create_bookmark() {
                 ;;
         esac
     done
-
-    # if url is urlencoded decode it
-    url=$(urldecode "$url")
 
     # If url is not working skip it
     if ! is_url_accessible "$url"; then
@@ -254,7 +249,6 @@ create_bookmark() {
     if [ -z "$title" ]; then
         title=$(echo "$url" | grep -oP '(?<=/)[^/]*$')
     fi
-    title=$(urldecode "$title")
     if [ -z "$name" ]; then
         local name="$title"
     fi
