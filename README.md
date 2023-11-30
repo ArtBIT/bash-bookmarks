@@ -20,11 +20,13 @@ ba --uri ../bash-bookmarks/README.md --title "bash-bookmarks"
 bo bash-bookmarks
 ```
 
-# TIPS:
+# Tips:
 
-You can also quickly bookmark the current directory by typing `ba .` or `ba $(pwd)`.
+Be sure to source the `.bookmarksrc` file in your `.bashrc` or `.zshrc` file. This will define some handy aliases and functions.
 
-Additionally, you can bookmark a specific line in a file by adding `#L<line_number>` to the URI. This will open the file in the editor and jump to the specified line.
+To quickly bookmark the current directory by typing `ba .` or `ba $(pwd)`.
+
+When bookmarking a file, you can bookmark a specific line in a file by adding `#L<line_number>` to the URI. This will open the file in the editor and jump to the specified line.
 
 You can also paste a URI from the clipboard by typing `ba paste`.
 
