@@ -266,7 +266,7 @@ is_file_uri() {
 
 is_local_file() {
     local uri="$1"
-    [[ "$uri" =~ ^/ ]] || [[ "$uri" =~ ^~ ]]
+    [[ "$uri" =~ ^/ ]] || [[ "$uri" =~ ^~ ]] || [[ "$uri" =~ ^\./ ]] || [[ "$uri" =~ ^\.\./ ]]
 }
 
 is_uri_accessible() {
@@ -311,6 +311,12 @@ create_bookmark() {
                     # expand ~ character
                     if [[ "$uri" =~ ^~ ]]; then
                         uri="${uri/#\~/$HOME}"
+                    fi
+                    # expand relative paths
+                    if [[ "$uri" =~ ^\./ ]]; then
+                        uri="${uri/#./$OLDPWD}"
+                    elif [[ "$uri" =~ ^\.\./ ]]; then
+                        uri="${uri/#../$OLDPWD/..}"
                     fi
                     uri=$(realpath "${uri#file://}")
                 fi
@@ -404,6 +410,7 @@ EOF
 #   delete      Delete a bookmark
 
 bookmarks() {
+    OLDPWD="$PWD"
     pushd "$BOOKMARKS_DIR" &>/dev/null
     local result=0
 

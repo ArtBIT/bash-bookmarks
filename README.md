@@ -9,6 +9,16 @@ Over the years I've accumulated over 10k bookmarks in Pocket. Navigating that am
 
 To make it work, I've created a custom protocol handler for `bookmarks://...` uri scheme, and a bookmaklet that will allow me to quickly add bookmarks to the database from the browser.
 
+A really handy feature of bash-bookmarks is the ability to bookmark local files or filepaths. This is especially useful when you have a lot of projects and you want to quickly navigate to a specific file.
+
+For an example, I have a bookmark called `bash-bookmarks` which points to the `README.md` file in this repository. To open that file, I simply type `be bash-bookmarks` in the terminal and the file will open in my default editor.
+
+```
+ba --uri ../bash-bookmarks/README.md --title "bash-bookmarks"
+be bash-bookmarks
+```
+
+
 # Demo
 
 [![asciicast](https://asciinema.org/a/czTpD0PD9kA620X49oaj3iYbt.svg)](https://asciinema.org/a/czTpD0PD9kA620X49oaj3iYbt)
