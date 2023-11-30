@@ -107,7 +107,8 @@ die() {
 
 # Decode URL encoded string
 urldecode() {
-    echo "$1" | sed -e 's/%\([0-9A-F][0-9A-F]\)/\\\\\\x\1/g' | xargs echo -e
+    echo "$1" | sed -e 's/+/ /g' -e 's/%\([0-9A-F][0-9A-F]\)/\\\\\\x\1/g' | xargs echo -e
+
 }
 
 # Get the OS name
