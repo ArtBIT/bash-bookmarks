@@ -179,7 +179,6 @@ fuzzy_file() {
     local files=$(fdfind --type f -e md .)
     # if "$1" is not empty, filter files by whether file contents contains "$1"
     if [ ! -z "$1" ]; then
-        echo "Filtering " >&2
         files=$(echo "$files" | xargs grep -l "$1")
     fi
     file=$(echo "$files" | fzf)
@@ -243,7 +242,7 @@ create_bookmark() {
 
     # If url is not working skip it
     if ! is_url_accessible "$url"; then
-        die "URL is not working: $url, skipping"
+        die "URL is not accessible: $url"
     fi
 
     # If title is empty, try to get it from URL
@@ -256,14 +255,20 @@ create_bookmark() {
         title=$(echo "$url" | grep -oP '(?<=/)[^/]*$')
     fi
     title=$(urldecode "$title")
+    if [ -z "$name" ]; then
+        local name="$title"
+    fi
+
+    log info "Creating bookmark:"
+    log info "  Title: $title"
+    log info "  URL: $url"
+    log info "  Category: $category"
+    log info "  Tags: $tags"
+    log info "  Name: $name"
 
     [ -z "$title" ]    && die "Title cannot be empty for $url"
     [ -z "$url" ]      && die "URL cannot be empty for $title"
     [ -z "$category" ] && die "Category cannot be empty for $title"
-
-    if [ -z "$name" ]; then
-        local name="$title"
-    fi
 
     mkdir -p "$category"
     local filename="$category/$(slugify "$name").md"
@@ -299,7 +304,7 @@ bookmarks() {
     case "$1" in
         add)
             shift
-            log info "Adding bookmark"
+            log info "Adding bookmark..."
             create_bookmark "$@"
             if [ "$?" -ne 0 ]; then
                 return "$?"
