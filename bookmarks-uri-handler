@@ -20,9 +20,9 @@ if [ ! -z "$1" ]; then
         params["$key"]="$value"
     done
 
-    # extract title, url, category and tags from the params
+    # extract title, uri, category and tags from the params
     title="${params['title']}"
-    url="${params['url']}"
+    uri="${params['uri']}"
     category="${params['category']}"
     tags="${params['tags']}"
     # check if the tags are enclosed in square brackets
@@ -31,7 +31,7 @@ if [ ! -z "$1" ]; then
         tags="${tags:1:${#tags}-2}"
     fi
 
-    #$SCRIPT_DIR/bookmarks add --title "$title" --url "$url" --category "$category" --tags "$tags"
-    gnome-terminal -- /bin/bash -c "$SCRIPT_DIR/bookmarks add --title \"$title\" --url \"$url\" --category \"$category\" --tags \"$tags\"; exec /bin/bash"
+    #$SCRIPT_DIR/bookmarks add --title "$title" --uri "$uri" --category "$category" --tags "$tags"
+    gnome-terminal -- /bin/bash -c "$SCRIPT_DIR/bookmarks add --title \"$title\" --uri \"$uri\" --category \"$category\" --tags \"$tags\"; exec /bin/bash"
 fi
 

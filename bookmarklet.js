@@ -138,7 +138,7 @@
                 value: document.title,
                 required: true,
             }),
-            formField({ label: "URL", name: "url", value: document.URL }),
+            formField({ label: "URI", name: "uri", value: document.URL }),
             formField({
                 label: "Category",
                 name: "category",

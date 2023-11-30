@@ -2,7 +2,7 @@
 Encoding=UTF-8
 Name=Bookmarks Manager
 Comment=Bash Bookmarks Manager
-Exec=/home/artbit/Documents/bookmarks/bookmarks-url-handler %U
+Exec=/home/artbit/Documents/bookmarks/bookmarks-uri-handler %U
 Terminal=true
 Type=Application
 Icon=/usr/src/vim/runtime/vim48x48.xpm

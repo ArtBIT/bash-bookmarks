@@ -38,12 +38,12 @@ bookmarks_usage() {
     echo "Commands:"
     echo "  edit [query]    Edit a bookmark file [ query is optional, if provided, it will be used to filter bookmarks ]"
     echo "  open [query]    Open a bookmark file in the browser [ query is optional, if provided, it will be used to filter bookmarks ]"
-    echo "  add             Add a new bookmark [ options: --title, --url, --category, --tags, --name ]"
+    echo "  add             Add a new bookmark [ options: --title, --uri, --category, --tags, --name ]"
     echo "  help            Show this help"
     echo ""
     echo "Options:"
     echo "  --title         Title of the bookmark"
-    echo "  --url           URL of the bookmark"
+    echo "  --uri           URI of the bookmark"
     echo "  --category      Category of the bookmark"
     echo "  --tags          Tags of the bookmark"
     echo "  --name          Name of the bookmark file"
@@ -53,7 +53,7 @@ bookmarks_usage() {
     echo "  bookmarks edit \"my query\""
     echo "  bookmarks open"
     echo "  bookmarks open \"my query\""
-    echo "  bookmarks add --title \"My title\" --url \"https://example.com\" --category \"My category\" --tags \"tag1,tag2\" --name \"my-bookmark\""
+    echo "  bookmarks add --title \"My title\" --uri \"https://example.com\" --category \"My category\" --tags \"tag1,tag2\" --name \"my-bookmark\""
 }
 
 # Transform the string debug level to integer
@@ -155,7 +155,26 @@ edit_markdown() {
     "$MARKDOWN_EDITOR" "$1"
 }
 
-open_in_browser() {
+open_uri() {
+    [ -z "$1" ] && die "No URI provided"
+    # check if uri is an URL
+    if [[ "$1" =~ ^https?:// ]]; then
+        log info "Opening $1 in browser..."
+        os_open "$1"
+    # check if uri is a file
+    elif [[ "$1" =~ ^file:// ]]; then
+        log info "Opening $1 in editor..."
+        os_open "$1"
+    # check if uri is a local file
+    elif [[ "$1" =~ ^/ ]]; then
+        log info "Opening $1 in editor..."
+        os_open "file://$1"
+    else
+        log error "Unsuported URI: $1"
+    fi
+}
+
+os_open() {
     [ -z "$1" ] && die "No URL provided"
 
     log info "Opening $1 in browser..."
@@ -194,12 +213,12 @@ is_url_accessible() {
 # Create a new bookmark
 # Options:
 #   --title         Title of the bookmark
-#   --url           URL of the bookmark
+#   --uri           URI of the bookmark
 #   --category      Default: unsorted, the subdirectory of the bookmarks directory where the bookmark will be saved
 #   --tags          Comma separated list of tags
 #   --name          Name of the bookmark file
 #
-# If --title or --url is not provided, the user will be prompted for them
+# If --title or --uri is not provided, the user will be prompted for them
 # If --name is not provided, it will default to a slugified version of the title
 create_bookmark() {
     local category="unsorted"
@@ -210,9 +229,9 @@ create_bookmark() {
                 local title=$(urldecode "$1")
                 shift
                 ;;
-            --url)
+            --uri)
                 shift
-                local url=$(urldecode "$1")
+                local uri=$(urldecode "$1")
                 shift
                 ;;
             --category)
@@ -237,18 +256,18 @@ create_bookmark() {
     done
 
     # If url is not working skip it
-    if ! is_url_accessible "$url"; then
-        die "URL is not accessible: $url"
+    if ! is_url_accessible "$uri"; then
+        die "URI is not accessible: $uri"
     fi
 
-    # If title is empty, try to get it from URL
+    # If title is empty, try to get it from URI
     if [ -z "$title" ]; then
-        title=$(curl -s "$url" | grep -oP '(?<=<title>).*?(?=</title>)')
+        title=$(curl -s "$uri" | grep -oP '(?<=<title>).*?(?=</title>)')
     fi
 
     # If title is still empty infer it from the last part of the URL
     if [ -z "$title" ]; then
-        title=$(echo "$url" | grep -oP '(?<=/)[^/]*$')
+        title=$(echo "$uri" | grep -oP '(?<=/)[^/]*$')
     fi
     if [ -z "$name" ]; then
         local name="$title"
@@ -256,13 +275,13 @@ create_bookmark() {
 
     log info "Creating bookmark:"
     log info "  Title: $title"
-    log info "  URL: $url"
+    log info "  URI: $uri"
     log info "  Category: $category"
     log info "  Tags: $tags"
     log info "  Name: $name"
 
-    [ -z "$title" ]    && die "Title cannot be empty for $url"
-    [ -z "$url" ]      && die "URL cannot be empty for $title"
+    [ -z "$title" ]    && die "Title cannot be empty for $uri"
+    [ -z "$uri" ]      && die "URI cannot be empty for $title"
     [ -z "$category" ] && die "Category cannot be empty for $title"
 
     mkdir -p "$category"
@@ -276,10 +295,10 @@ create_bookmark() {
     cat > "$filename" <<EOF
 ---
 title: $title
-url: $url
+uri: $uri
 tags: [$tags]
 ---
-[$url]($url)
+[$uri]($uri)
 EOF
     echo "$filename"
 }
@@ -319,8 +338,8 @@ bookmarks() {
             local file=$(fuzzy_file "$1")
             [ -z "$file" ] && die "No file found for tag: $1"
 
-            local url=$(grep -oP '(?<=url: ).*' "$file")
-            open_in_browser "$url"
+            local uri=$(grep -oP '(?<=uri: ).*' "$file")
+            open_uri "$uri"
             ;;
 
         help)
