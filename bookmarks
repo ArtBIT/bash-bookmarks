@@ -266,7 +266,7 @@ is_file_uri() {
 
 is_local_file() {
     local uri="$1"
-    [[ "$uri" =~ ^/ ]] || [[ "$uri" =~ ^~ ]] || [[ "$uri" =~ ^\./ ]] || [[ "$uri" =~ ^\.\./ ]]
+    [[ "$uri" =~ ^/ ]] || [[ "$uri" =~ ^~ ]] || [[ "$uri" =~ ^\./ ]] || [[ "$uri" =~ ^\.\./ ]] || [[ "$uri" = "." ]] || [[ "$uri" = ".." ]];
 }
 
 is_uri_accessible() {
@@ -308,12 +308,17 @@ create_bookmark() {
                 shift
                 local uri=$(urldecode "$1")
                 if is_file "$uri"; then
+                    # expand dot character
+                    # if uri equals  to dot
+                    if [[ "$uri" = "." ]]; then
+                        uri="$OLDPWD"
+                    elif [[ "$uri" = ".." ]]; then
+                        uri="$OLDPWD/.."
                     # expand ~ character
-                    if [[ "$uri" =~ ^~ ]]; then
+                    elif [[ "$uri" =~ ^~ ]]; then
                         uri="${uri/#\~/$HOME}"
-                    fi
                     # expand relative paths
-                    if [[ "$uri" =~ ^\./ ]]; then
+                    elif [[ "$uri" =~ ^\./ ]]; then
                         uri="${uri/#./$OLDPWD}"
                     elif [[ "$uri" =~ ^\.\./ ]]; then
                         uri="${uri/#../$OLDPWD/..}"
