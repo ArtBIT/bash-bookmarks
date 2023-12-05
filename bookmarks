@@ -27,6 +27,8 @@ MARKDOWN_EDITOR=${EDITOR:-"vim"}
 MARKDOWN_VIEWER=${MARKDOWN_VIEWER:-"glow"}
 # Specify the directory where your bookmarks are stored
 BOOKMARKS_DIR=${BOOKMARKS_DIR:-"$HOME/Documents/bookmarks/data"}
+# http://www.ietf.org/rfc/rfc2068.txt
+BOOKMARKS_USER_AGENT="Bash-Bookmarks/1.0 (X11; Linux x86_64; rv:10.0)"
 
 # We want to be able to exit the script with Ctrl+C without leaving the terminal in a weird state
 # So we trap the EXIT signal and reset the terminal
@@ -159,7 +161,7 @@ get_title_from_uri() {
     [ -z "$uri" ] && die "No URI provided"
 
     if is_url "$uri"; then
-        curl -s "$uri" | grep -oP '(?<=<title>).*?(?=</title>)'
+        curl -s --user-agent "$BOOKMARKS_USER_AGENT" "$uri" | grep -oP '(?<=<title>).*?(?=</title>)'
     elif is_file "$uri"; then
         # if file is pdf or a document try to get the title from the metadata
         local extension=$(echo "$uri" | grep -oP '\.[a-zA-Z0-9]+$')
@@ -272,7 +274,7 @@ is_local_file() {
 is_uri_accessible() {
     local uri="$1"
     if is_url "$uri"; then
-        http_status=$(curl -s --head "$uri" | head -n 1 | grep "HTTP/[0-9.]\+ [12345].." | cut -d " " -f 2)
+        http_status=$(curl -s --user-agent "$BOOKMARKS_USER_AGENT" --head "$uri" | head -n 1 | grep "HTTP/[0-9.]\+ [12345].." | cut -d " " -f 2)
         log debug "HTTP status code: $http_status"
         # check if status code is 2xx or 3xx
         [[ "$http_status" =~ ^[23] ]] && return 0 || return 1
@@ -292,6 +294,8 @@ is_uri_accessible() {
 #   --category      Default: unsorted, the subdirectory of the bookmarks directory where the bookmark will be saved
 #   --tags          Comma separated list of tags
 #   --name          Name of the bookmark file
+#
+# Returns the path of the created bookmark
 #
 # If --title or --uri is not provided, the user will be prompted for them
 # If --name is not provided, it will default to a slugified version of the title
@@ -401,7 +405,8 @@ tags: [$tags]
 ---
 [$uri]($uri)
 EOF
-    echo "$filename"
+    
+    echo "$BOOKMARKS_DIR/$filename"
 }
 
 
@@ -501,6 +506,7 @@ bookmarks() {
 
 # if not sourced, run main
 if [ "$0" = "$BASH_SOURCE" ]; then
+    log debug "Running main: $@"
     bookmarks "$@"
 fi
 
