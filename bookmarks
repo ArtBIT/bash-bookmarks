@@ -43,6 +43,7 @@ bookmarks_usage() {
     echo "  edit [query]    Edit a bookmark file"
     echo "  open [query]    Open a bookmark file in the browser"
     echo "  paste           Paste a bookmark from the clipboard"
+    echo "  copy            Copy a bookmark into the clipboard"
     echo "  delete [query]  Delete a bookmark file"
     echo ""
     echo "Options:"
@@ -138,6 +139,14 @@ get_os() {
     esac
 }
 
+get_uri_from_file() {
+    local file="$1"
+    [ -z "$file" ] && die "No file provided"
+
+    local uri=$(cat "$file" | grep "^uri:" | sed -e "s/^uri: //")
+    echo "$uri"
+}
+
 get_clipboard() {
     local os=$(get_os)
     case "$os" in
@@ -149,6 +158,24 @@ get_clipboard() {
             ;;
         windows)
             powershell.exe -command "Get-Clipboard"
+            ;;
+        *)
+            die "Unsupported OS"
+            ;;
+    esac
+}
+
+set_clipboard() {
+    local os=$(get_os)
+    case "$os" in
+        linux)
+            echo "$1" | xclip -selection clipboard
+            ;;
+        mac)
+            echo "$1" | pbcopy
+            ;;
+        windows)
+            powershell.exe -command "Set-Clipboard -Value $1"
             ;;
         *)
             die "Unsupported OS"
@@ -415,6 +442,7 @@ EOF
 # Commands:
 #   add         Add a new bookmark
 #   paste       Paste a new bookmark from the clipboard
+#   copy        Copy a new bookmark into the clipboard
 #   edit        Edit a bookmark
 #   open        Open a bookmark
 #   delete      Delete a bookmark
@@ -425,6 +453,20 @@ bookmarks() {
     local result=0
 
     case "$1" in
+        copy)
+            shift
+            local filename=$(fuzzy_file "$1")
+            [ -z "$filename" ] && die "No file found for tag: $1"
+
+            local uri=$(get_uri_from_file "$filename")
+            if [ -z "$uri" ]; then
+                die "No URI found for file: $filename"
+            fi
+            log info "Copying bookmark to clipboard..."
+            set_clipboard "$uri"
+            result=$?
+            ;;
+
         paste)
             shift
             local uri=$(get_clipboard)
