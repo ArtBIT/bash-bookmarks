@@ -229,13 +229,13 @@ display_markdown() {
 
 edit_markdown() {
     [ -z "$1" ] && die "No file provided"
-    log info "Opening $1 in $MARKDOWN_EDITOR..."
+    log debug "Opening $1 in $MARKDOWN_EDITOR..."
     "$MARKDOWN_EDITOR" "$1"
 }
 
 open_uri() {
     local uri="$1"
-    log info "Opening [$uri]"
+    log debug "Opening [$uri]"
     [ -z "$uri" ] && die "No URI provided"
     # check if uri is an URL
     if [[ "$uri" =~ ^https?:// ]]; then
@@ -260,7 +260,7 @@ open_uri() {
 os_open() {
     [ -z "$1" ] && die "No URI provided"
 
-    log info "Opening $1 in browser..."
+    log debug "Opening $1 in browser..."
     local os=$(get_os)
     case "$os" in
         linux)
