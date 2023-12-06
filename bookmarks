@@ -31,8 +31,12 @@ BOOKMARKS_DIR=${BOOKMARKS_DIR:-"$HOME/Documents/bookmarks/data"}
 BOOKMARKS_USER_AGENT="Bash-Bookmarks/1.0 (X11; Linux x86_64; rv:10.0)"
 
 # We want to be able to exit the script with Ctrl+C without leaving the terminal in a weird state
-# So we trap the EXIT signal and reset the terminal
-trap "" EXIT
+# So we trap the EXIT signal and reset the terminal, only if the script is not sourced and the exit code is not 0
+if [ "$0" = "$BASH_SOURCE" ]; then
+    trap '[[ "$?" -ne 0 ]] && reset' EXIT
+fi
+
+
 
 bookmarks_usage() {
     echo "Usage: bookmarks [command] [options]"
@@ -230,22 +234,27 @@ edit_markdown() {
 }
 
 open_uri() {
-    [ -z "$1" ] && die "No URI provided"
+    local uri="$1"
+    log info "Opening [$uri]"
+    [ -z "$uri" ] && die "No URI provided"
     # check if uri is an URL
-    if [[ "$1" =~ ^https?:// ]]; then
-        log info "Opening $1 in browser..."
-        os_open "$1"
-    # check if uri is a file
-    elif [[ "$1" =~ ^file:// ]]; then
-        log info "Opening $1 in editor..."
-        os_open "$1"
-    # check if uri is a local file
-    elif [[ "$1" =~ ^/ ]]; then
-        log info "Opening $1 in editor..."
-        os_open "file://$1"
-    else
-        log error "Unsuported URI: $1"
+    if [[ "$uri" =~ ^https?:// ]]; then
+        os_open "$uri"
+        return 0
     fi
+    if is_file "$uri"; then
+        # strip file:// from uri
+        local file=$(echo "$uri" | sed -e "s/^file:\/\///")
+
+        # if file is a directory, cd into it
+        if [ -d "$file" ]; then
+            cd "$file"
+        else
+            $EDITOR "$file"
+        fi
+        return 0
+    fi
+    log error "Unsuported URI: $1"
 }
 
 os_open() {
@@ -275,7 +284,8 @@ fuzzy_file() {
     fi
     file=$(echo "$files" | fzf)
     [ -z "$file" ] && die "No file selected"
-    echo "$file"
+
+    realpath "$file"
 }
 
 is_url() {
@@ -289,13 +299,12 @@ is_file() {
 }
 
 is_file_uri() {
-    local uri="$1"
-    [[ "$uri" =~ ^file:// ]]
+    [[ "$1" =~ ^file:// ]]
 }
 
 is_local_file() {
     local uri="$1"
-    [[ "$uri" =~ ^/ ]] || [[ "$uri" =~ ^~ ]] || [[ "$uri" =~ ^\./ ]] || [[ "$uri" =~ ^\.\./ ]] || [[ "$uri" = "." ]] || [[ "$uri" = ".." ]];
+    [[ "$uri" =~ ^/ ]] || [[ "$uri" =~ ^~ ]] || [[ "$uri" =~ ^\. ]] || [[ "$uri" =~ ^\.\. ]];
 }
 
 is_uri_accessible() {
@@ -536,9 +545,15 @@ bookmarks() {
 
         *)
             local file=$(fuzzy_file "$1")
-            [ -z "$file" ] && die "No file found for tag: $2"
-            [ -f "$file" ] && cat "$file" | grep ^uri | cut -d ' ' -f 2
-            result=$?
+            log info "Opening bookmark: $file"
+            [ -z "$file" ] && die "No file found for tag: $1"
+            [ ! -f "$file" ] && die "File not found: $file"
+            uri=$(cat "$file" | grep ^uri | cut -d ' ' -f 2)
+            [ -z "$uri" ] && die "No URI found for file: $file"
+            # if the URI is a directory we want to cd into it
+            popd &>/dev/null
+            open_uri "$uri"
+            return $?
             ;;
     esac
 
@@ -549,6 +564,6 @@ bookmarks() {
 # if not sourced, run main
 if [ "$0" = "$BASH_SOURCE" ]; then
     log debug "Running main: $@"
-    bookmarks "$@"
+    bookmarks_result=$(bookmarks "$@")
 fi
 
