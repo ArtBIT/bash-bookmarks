@@ -20,13 +20,34 @@ ba --uri ../bash-bookmarks/README.md --title "bash-bookmarks"
 bo bash-bookmarks
 ```
 
+# Usage
+
+```
+# Bookmark Documents folder
+cd ~/Documents
+ba .
+
+# Bookmark project folder
+cd ~/code/github/bash-bookmarks
+ba .
+
+# quickly cd into ~/Documents
+b Doc
+
+# come back to bash-bookmarks
+b bash-b
+
+```
+
 # Tips:
 
 Be sure to source the `.bookmarksrc` file in your `.bashrc` or `.zshrc` file. This will define some handy aliases and functions.
 
 To quickly bookmark the current directory by typing `ba .` or `ba $(pwd)`.
 
-You can also paste a URI from the clipboard by typing `ba paste`.
+You can also paste a URI from the clipboard by typing `b paste`.
+
+Or copy the URI into the clipboard by typing `b copy`
 
 
 # Demo
