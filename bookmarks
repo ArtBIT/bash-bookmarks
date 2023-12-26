@@ -288,6 +288,13 @@ fuzzy_file() {
     realpath "$file"
 }
 
+# Search all the files in the bookmarks directory for a string using fzf
+# and return the list of files that contain the string
+fuzzy_contents() {
+    local files=$(fdfind --type f -e md .)
+    echo "$files" | xargs grep "" | fzf --filter="$1" | grep -o '^[^:]\+' | uniq -u
+}
+
 is_url() {
     local url="$1"
     [[ "$url" =~ ^https?:// ]]
@@ -523,16 +530,10 @@ bookmarks() {
 
         search)
             shift
-            # show all files matching the query
-            local files=$(fdfind --type f -e md .)
-            if [ ! -z "$1" ]; then
-                filtered_files=$(echo "$files" | xargs grep -l "$1")
-                if [ ! -z "$filtered_files" ]; then
-                    files="$filtered_files"
-                fi
-            fi
+            local files=$(fuzzy_contents "$1")
+            [ -z "$files" ] && die "No file found for tag: $1"
             # cat all files, filter them, get the uri, and add file: prefix if it is a local file
-            echo "$files" | fzf --filter="$1" | xargs cat | grep -oP '(?<=uri: ).*' | xargs -I {} bash -c 'if [[ "{}" =~ ^/ ]]; then echo "file://{}"; else echo "{}"; fi'
+            echo "$files" | xargs cat | grep -oP '(?<=uri: ).*' | xargs -I {} bash -c 'if [[ "{}" =~ ^/ ]]; then echo "file://{}"; else echo "{}"; fi'
             
             result=$?
             ;;
@@ -545,16 +546,9 @@ bookmarks() {
                 echo "[]"
                 return 0
             fi
-            # show all files matching the query
-            local files=$(fdfind --type f -e md .)
-            if [ ! -z "$1" ]; then
-                filtered_files=$(echo "$files" | xargs grep -l "$QUERY")
-                if [ ! -z "$filtered_files" ]; then
-                    files="$filtered_files"
-                fi
-            fi
-            # cat all files, filter them, get the uri, and add file: prefix if it is a local file
-            files=$(echo "$files" | fzf --filter="$QUERY")
+            local files=$(fuzzy_contents "$QUERY")
+            [ -z "$files" ] && die "No file found for tag: $QUERY"
+
             #limit to 20 results
             files=$(echo "$files" | head -n 20)
             # for each file, get the uri, title, and tags
