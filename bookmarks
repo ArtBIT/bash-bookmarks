@@ -521,6 +521,94 @@ bookmarks() {
             result=$?
             ;;
 
+        search)
+            shift
+            # show all files matching the query
+            local files=$(fdfind --type f -e md .)
+            if [ ! -z "$1" ]; then
+                filtered_files=$(echo "$files" | xargs grep -l "$1")
+                if [ ! -z "$filtered_files" ]; then
+                    files="$filtered_files"
+                fi
+            fi
+            # cat all files, filter them, get the uri, and add file: prefix if it is a local file
+            echo "$files" | fzf --filter="$1" | xargs cat | grep -oP '(?<=uri: ).*' | xargs -I {} bash -c 'if [[ "{}" =~ ^/ ]]; then echo "file://{}"; else echo "{}"; fi'
+            
+            result=$?
+            ;;
+
+        suggest)
+            shift
+            QUERY="$1"
+            # if quesry is shorter than 3 characters, return empty array
+            if [ ${#QUERY} -lt 3 ]; then
+                echo "[]"
+                return 0
+            fi
+            # show all files matching the query
+            local files=$(fdfind --type f -e md .)
+            if [ ! -z "$1" ]; then
+                filtered_files=$(echo "$files" | xargs grep -l "$QUERY")
+                if [ ! -z "$filtered_files" ]; then
+                    files="$filtered_files"
+                fi
+            fi
+            # cat all files, filter them, get the uri, and add file: prefix if it is a local file
+            files=$(echo "$files" | fzf --filter="$QUERY")
+            #limit to 20 results
+            files=$(echo "$files" | head -n 20)
+            # for each file, get the uri, title, and tags
+            results=""
+            for file in $files; do
+                uri=$(cat "$file" | grep -oP '(?<=uri: ).*')
+                title=$(cat "$file" | grep -oP '(?<=title: ).*')
+                tags=$(cat "$file" | grep -oP '(?<=tags: ).*')
+                # read category from the file path
+                category=$(echo "$file" | grep -oP '.*(?=/)')
+                # add quotes to each tag
+                tags=$(echo "$tags" | sed -e "s/\[//g" -e "s/\]//g" -e "s/,/\",\"/g" -e "s/^/\"/" -e "s/$/\"/")
+                if [[ "$tags" == "\"\"" ]]; then
+                    tags=""
+                fi
+                results="$results{\"url\": \"$uri\", \"title\":\"$title\", \"tags\": [$tags], \"category\":\"$category\"},"
+            done
+            # remove last comma
+            results=$(echo "$results" | sed -e "s/,$//")
+            echo "[$results]"
+            
+            result=$?
+            ;;
+        server)
+            shift
+            cd ..
+            if [ "$1" == "stop" ]; then
+                pid_file="$PWD/server.pid"
+                if [ ! -f "$pid_file" ]; then
+                    log info "Server not running"
+                    return 0
+                fi
+                log info "Stopping server"
+                pid=$(cat "$pid_file")
+                kill "$pid"
+                rm "$pid_file"
+                return
+            fi
+            local port="${1:-8000}"
+            pid_file="$PWD/server.pid"
+            if [ -f "$pid_file" ]; then
+                log info "Server already running"
+                return 0
+            fi
+            log info "Starting server on port $port"
+            # Start the server in the background
+            python server.py "$port" &>/dev/null &
+            result=$?
+            pid=$!
+            echo "$pid" > "$pid_file"
+
+            popd &>/dev/null
+            return
+            ;;
         delete)
             shift
             local file=$(fuzzy_file "$1")
@@ -565,5 +653,6 @@ bookmarks() {
 if [ "$0" = "$BASH_SOURCE" ]; then
     log debug "Running main: $@"
     bookmarks_result=$(bookmarks "$@")
+    echo "$bookmarks_result"
 fi
 

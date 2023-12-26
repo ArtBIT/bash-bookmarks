@@ -13,3 +13,8 @@ alias bp="b paste"
 function bcd() {
     cd "$(b "$@")"
 }
+
+# if source'd, start the server
+if [ "$0" = "$BASH_SOURCE" ]; then
+    b server
+fi
