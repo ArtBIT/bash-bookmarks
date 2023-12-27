@@ -282,7 +282,7 @@ fuzzy_file() {
     if [ ! -z "$1" ]; then
         files=$(echo "$files" | xargs grep -l "$1")
     fi
-    file=$(echo "$files" | fzf)
+    file=$(echo "$files" | fzf -i)
     [ -z "$file" ] && die "No file selected"
 
     realpath "$file"
@@ -292,7 +292,7 @@ fuzzy_file() {
 # and return the list of files that contain the string
 fuzzy_contents() {
     local files=$(fdfind --type f -e md .)
-    echo "$files" | xargs grep "" | fzf --filter="$1" | grep -o '^[^:]\+' | uniq -u
+    echo "$files" | xargs grep "" | fzf --filter="$1" | grep -o '^[^:]\+' | awk '!a[$0]++{print}'
 }
 
 is_url() {
