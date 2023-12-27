@@ -15,6 +15,6 @@ function bcd() {
 }
 
 # if source'd, start the server
-if [ "$0" = "$BASH_SOURCE" ]; then
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     b server
 fi
