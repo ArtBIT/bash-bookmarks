@@ -432,6 +432,7 @@ create_bookmark() {
     [ -z "$uri" ]      && die "URI cannot be empty for $title"
     [ -z "$category" ] && die "Category cannot be empty for $title"
 
+    category=$(slugify "$category")
     mkdir -p "$category"
     local filename="$category/$(slugify "$name").md"
     if [ -f "$filename" ]; then
