@@ -46,8 +46,6 @@ bookmarks_usage() {
     echo "  add             Add a new bookmark [ options: --title, --uri, --category, --tags, --name ]"
     echo "  edit [query]    Edit a bookmark file"
     echo "  open [query]    Open a bookmark file in the browser"
-    echo "  paste           Paste a bookmark from the clipboard"
-    echo "  copy            Copy a bookmark into the clipboard"
     echo "  delete [query]  Delete a bookmark file"
     echo "  suggest [query] Suggest bookmarks by title, tags, etc."
     echo "  server [port]   Start a server to search bookmarks by title, tags, etc."
@@ -152,42 +150,6 @@ get_uri_from_file() {
 
     local uri=$(cat "$file" | grep "^uri:" | sed -e "s/^uri: //")
     echo "$uri"
-}
-
-get_clipboard() {
-    local os=$(get_os)
-    case "$os" in
-        linux)
-            xclip -selection clipboard -o
-            ;;
-        mac)
-            pbpaste
-            ;;
-        windows)
-            powershell.exe -command "Get-Clipboard"
-            ;;
-        *)
-            die "Unsupported OS"
-            ;;
-    esac
-}
-
-set_clipboard() {
-    local os=$(get_os)
-    case "$os" in
-        linux)
-            echo "$1" | xclip -selection clipboard
-            ;;
-        mac)
-            echo "$1" | pbcopy
-            ;;
-        windows)
-            powershell.exe -command "Set-Clipboard -Value $1"
-            ;;
-        *)
-            die "Unsupported OS"
-            ;;
-    esac
 }
 
 get_title_from_uri() {
@@ -576,11 +538,12 @@ bookmarks_export() {
 # Usage: bookmarks <command> [args]
 # Commands:
 #   add         Add a new bookmark
-#   paste       Paste a new bookmark from the clipboard
-#   copy        Copy a new bookmark into the clipboard
 #   edit        Edit a bookmark
 #   open        Open a bookmark
 #   delete      Delete a bookmark
+#   export      Export bookmarks to a HTML file
+#   server      Start a server to search bookmarks by title, tags, etc.
+#   help        Show help
 
 bookmarks() {
     OLDPWD="$PWD"
@@ -588,31 +551,6 @@ bookmarks() {
     local result=0
 
     case "$1" in
-        copy)
-            shift
-            local filename=$(fuzzy_file "$1")
-            [ -z "$filename" ] && die "No file found for tag: $1"
-
-            local uri=$(get_uri_from_file "$filename")
-            if [ -z "$uri" ]; then
-                die "No URI found for file: $filename"
-            fi
-            log info "Copying bookmark to clipboard..."
-            set_clipboard "$uri"
-            result=$?
-            ;;
-
-        paste)
-            shift
-            local uri=$(get_clipboard)
-            if [ -z "$uri" ]; then
-                die "Clipboard is empty"
-            fi
-            log info "Adding bookmark from clipboard..."
-            create_bookmark --uri "$uri" "$@"
-            result=$?
-            ;;
-
         add)
             shift
 
