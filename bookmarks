@@ -30,14 +30,6 @@ BOOKMARKS_DIR=${BOOKMARKS_DIR:-"$HOME/Documents/bookmarks/data"}
 # http://www.ietf.org/rfc/rfc2068.txt
 BOOKMARKS_USER_AGENT="Bash-Bookmarks/1.0 (X11; Linux x86_64; rv:10.0)"
 
-# We want to be able to exit the script with Ctrl+C without leaving the terminal in a weird state
-# So we trap the EXIT signal and reset the terminal, only if the script is not sourced and the exit code is not 0
-if [ "$0" = "$BASH_SOURCE" ]; then
-    trap '[[ "$?" -ne 0 ]] && reset' EXIT
-fi
-
-
-
 bookmarks_usage() {
     echo "Usage: bookmarks [command] [options]"
     echo ""
@@ -248,9 +240,11 @@ fuzzy_file() {
         files=$(echo "$files" | xargs grep -l "$1")
     fi
     file=$(echo "$files" | fzf -i)
-    [ -z "$file" ] && die "No file selected"
-
-    realpath "$file"
+    if [ ! -z "$file" ]; then
+        realpath "$file"
+    else
+        log error "No file selected"
+    fi
 }
 
 # Search all the files in the bookmarks directory for a string using fzf
@@ -637,8 +631,13 @@ bookmarks() {
             local port="${1:-8000}"
             pid_file="$PWD/server.pid"
             if [ -f "$pid_file" ]; then
-                log info "Server already running"
-                return 0
+                pid=$(cat "$pid_file")
+                # check if process is running
+                if ps -p "$pid" > /dev/null; then
+                    log info "Server already running"
+                    return 0
+                fi
+                rm "$pid_file"
             fi
             log info "Starting server on port $port"
             # Start the server in the background
@@ -685,13 +684,13 @@ bookmarks() {
 
         *)
             local file=$(fuzzy_file "$1")
-            log info "Opening bookmark: $file"
             [ -z "$file" ] && die "No file found for tag: $1"
             [ ! -f "$file" ] && die "File not found: $file"
             uri=$(cat "$file" | grep ^uri | cut -d ' ' -f 2)
             [ -z "$uri" ] && die "No URI found for file: $file"
             # if the URI is a directory we want to cd into it
             popd &>/dev/null
+            log info "Opening bookmark: $file"
             open_uri "$uri"
             return $?
             ;;
