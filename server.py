@@ -110,12 +110,20 @@ class ServerHandler(BaseHTTPRequestHandler):
         command = [command_dir + '/bookmarks', 'add', '--uri', url, '--title', title, '--category', category]
         print('Executing command: {}'.format(command))
         # run the command in a subprocess and get the exit code
-        exit_code = subprocess.call(command)
+        proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc.wait()
+        (stdout, stderr) = proc.communicate()
 
-        if exit_code != 0:
+        if proc.returncode != 0:
             # if the exit code is not 0, then there was an error
             print('Error adding url')
-            self.output_result({'error': 'Error adding url'}, 'json')
+            # convert error message to json
+            stderr = stderr.decode('utf-8')
+            # split the error message into lines
+            stderr = stderr.split('\n')
+            # remove empty lines
+            stderr = [line for line in stderr if line]
+            self.output_result({'error': 'Error adding url', 'message': stderr}, 'json')
             return
 
         self.output_result({'success': 'Url added'}, 'json')

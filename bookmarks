@@ -549,7 +549,7 @@ bookmarks() {
             shift
 
             # if there is only one argument and it is a valid URI, use it as the URI
-            if [ "$#" -eq 1 ] && is_uri_accessible "$1"; then
+            if [ "$#" -eq 1 ]; then
                 log info "Adding quick bookmark..."
                 create_bookmark --uri "$1"
                 result=$?
@@ -704,6 +704,8 @@ bookmarks() {
 if [ "$0" = "$BASH_SOURCE" ]; then
     log debug "Running main: $@"
     bookmarks_result=$(bookmarks "$@")
+    exit_code=$?
     echo "$bookmarks_result"
+    (exit $exit_code)
 fi
 
