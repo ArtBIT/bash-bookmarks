@@ -4,8 +4,14 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 source "$SCRIPT_DIR/bookmarks"
 
 bookmarks_run() {
-    $(bookmarks "$@")
+    ret=$(bookmarks "$@")
     exit_code=$?
+    if [[ $exit_code -eq 0 ]]; then
+        if [[ $ret != "" ]]; then
+            # execute the command in current shell
+            eval "$ret"
+        fi
+    fi
     (exit $exit_code)
 }
 alias b="bookmarks_run"
@@ -14,8 +20,4 @@ alias bo="b open"
 alias ba="b add"
 alias bd="b delete"
 alias bp="b paste"
-
-bcd() {
-    cd "$(b "$@")"
-}
 

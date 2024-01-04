@@ -205,7 +205,8 @@ open_uri() {
 
         # if file is a directory, cd into it
         if [ -d "$file" ]; then
-            cd "$file"
+            log debug "Opening directory: $file"
+            echo "cd \"$file\""
         else
             $EDITOR "$file"
         fi
@@ -262,6 +263,11 @@ is_url() {
 is_file() {
     local uri="$1"
     is_local_file "$uri" || is_file_uri "$uri"
+}
+
+is_directory() {
+    local uri="$1"
+    [[ "$uri" =~ ^/ ]] || [[ "$uri" =~ ^~ ]] || [[ "$uri" =~ ^\. ]] || [[ "$uri" =~ ^\.\. ]];
 }
 
 is_file_uri() {
@@ -409,7 +415,7 @@ tags: [$tags]
 [$uri]($uri)
 EOF
     
-    echo "$BOOKMARKS_DIR/$filename"
+    log info "Created: $BOOKMARKS_DIR/$filename"
 }
 
 bookmarks_progressbar() {
@@ -682,13 +688,29 @@ bookmarks() {
             result=$?
             ;;
 
+        cd)
+            shift
+            local file=$(fuzzy_file "$1")
+            [ -z "$file" ] && die "No file found for tag: $1"
+            [ ! -f "$file" ] && die "File not found: $file"
+            uri=$(cat "$file" | grep ^uri | cut -d ' ' -f 2)
+            log debug "URI: $uri"
+            [ -z "$uri" ] && die "No URI found for file: $file"
+            # if the URI is a directory we want to cd into it
+            popd &>/dev/null
+
+            if is_directory "$uri"; then
+                echo "cd \"$uri\""
+            elif is_file "$uri"; then
+                echo "cd \"$(dirname "$uri")\""
+            fi
+            ;;
         *)
             local file=$(fuzzy_file "$1")
             [ -z "$file" ] && die "No file found for tag: $1"
             [ ! -f "$file" ] && die "File not found: $file"
             uri=$(cat "$file" | grep ^uri | cut -d ' ' -f 2)
             [ -z "$uri" ] && die "No URI found for file: $file"
-            # if the URI is a directory we want to cd into it
             popd &>/dev/null
             log info "Opening bookmark: $file"
             open_uri "$uri"
