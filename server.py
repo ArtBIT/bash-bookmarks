@@ -6,8 +6,13 @@
 
 import os
 import json
+import logging
 import subprocess
 from http.server import BaseHTTPRequestHandler, HTTPServer
+
+# set env debug level
+level = os.environ.get('DEBUG', 'INFO')
+logging.basicConfig(filename='server.log', level=level)
 
 PAGE_TEMPLATE = """
 <!DOCTYPE html>
@@ -37,7 +42,7 @@ class Server:
         """
         server_address = ('', self.port)
         httpd = HTTPServer(server_address, ServerHandler)
-        print('Server running on port {}'.format(self.port))
+        logging.info('Server running on port {}'.format(self.port))
         httpd.serve_forever()
 
 class ServerHandler(BaseHTTPRequestHandler):
@@ -48,14 +53,14 @@ class ServerHandler(BaseHTTPRequestHandler):
         if self.path.startswith('/search'):
             self.handle_search()
             return
-        print('Invalid path')
+        logging.info('Invalid path')
         return
 
     def do_POST(self):
         """
             Handle POST request from client
         """
-        print('POST request')
+        logging.info('POST request')
         if self.path.startswith('/add'):
             self.handle_add()
             return
@@ -66,7 +71,7 @@ class ServerHandler(BaseHTTPRequestHandler):
         """
             Handle OPTION request from client
         """
-        print('OPTION request')
+        logging.info('OPTION request')
         if self.path.startswith('/add'):
             self.send_response(200)
             self.send_cors_headers()
@@ -82,15 +87,15 @@ class ServerHandler(BaseHTTPRequestHandler):
         self.parse_params()
         search_value = self.get_params.get('q', '')
         format = self.get_params.get('format', 'html')
-        print('Searching for {}'.format(search_value))
+        logging.info('Searching for {}'.format(search_value))
 
         # search all the files in the directory tree using commandline
         command_dir = os.path.dirname(os.path.realpath(__file__))
         command = [command_dir + '/bookmarks', 'suggest', search_value]
-        print('Executing command: {}'.format(command))
+        logging.info('Executing command: {}'.format(command))
         result = subprocess.check_output(command)
 
-        print('Result: {}'.format(result))
+        logging.debug('Result: {}'.format(result))
         # convert response text to json
         result = json.loads(result)
         self.output_result(result, format)
@@ -103,12 +108,12 @@ class ServerHandler(BaseHTTPRequestHandler):
         url = self.post_params.get('url', '')
         title = self.post_params.get('title', '')
         category = self.post_params.get('category', '')
-        print('Adding {} {} {}'.format(url, title, category))
+        logging.info('Adding {} {} {}'.format(url, title, category))
 
         # add a new bookmark using commandline
         command_dir = os.path.dirname(os.path.realpath(__file__))
         command = [command_dir + '/bookmarks', 'add', '--uri', url, '--title', title, '--category', category]
-        print('Executing command: {}'.format(command))
+        logging.info('Executing command: {}'.format(command))
         # run the command in a subprocess and get the exit code
         proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         proc.wait()
@@ -116,7 +121,7 @@ class ServerHandler(BaseHTTPRequestHandler):
 
         if proc.returncode != 0:
             # if the exit code is not 0, then there was an error
-            print('Error adding url')
+            logging.error('Error adding url')
             # convert error message to json
             stderr = stderr.decode('utf-8')
             # split the error message into lines
@@ -139,6 +144,7 @@ class ServerHandler(BaseHTTPRequestHandler):
         """
             Output the result to the client
         """
+        logging.info('Output format: {}'.format(format))
         if format == 'json':
             # Send the result back to the client
             self.send_response(200)
@@ -186,6 +192,9 @@ class ServerHandler(BaseHTTPRequestHandler):
         self.get_params = {}
         if '?' in self.path:
             self.get_params = dict([p.split('=') for p in self.path.split('?')[1].split('&')])
+
+        logging.info('GET path: {}'.format(self.path))
+        logging.info('GET params: {}'.format(self.get_params))
 
     def parse_post_params(self):
         """

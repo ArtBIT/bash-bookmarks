@@ -622,38 +622,55 @@ bookmarks() {
         server)
             shift
             cd ..
-            if [ "$1" == "stop" ]; then
-                pid_file="$PWD/server.pid"
-                if [ ! -f "$pid_file" ]; then
-                    log info "Server not running"
-                    return 0
-                fi
-                log info "Stopping server"
-                pid=$(cat "$pid_file")
-                kill "$pid"
-                rm "$pid_file"
-                return
-            fi
-            local port="${1:-8000}"
-            pid_file="$PWD/server.pid"
-            if [ -f "$pid_file" ]; then
-                pid=$(cat "$pid_file")
-                # check if process is running
-                if ps -p "$pid" > /dev/null; then
-                    log info "Server already running"
-                    return 0
-                fi
-                rm "$pid_file"
-            fi
-            log info "Starting server on port $port"
-            # Start the server in the background
-            python server.py "$port" &>/dev/null &
-            result=$?
-            pid=$!
-            echo "$pid" > "$pid_file"
+            case "$1" in
+                stop)
+                    pid_file="$PWD/server.pid"
+                    if [ ! -f "$pid_file" ]; then
+                        log info "Server not running"
+                        return 0
+                    fi
+                    log info "Stopping server"
+                    pid=$(cat "$pid_file")
+                    kill "$pid"
+                    rm "$pid_file"
+                    popd &>/dev/null
+                    return
+                    ;;
+                restart)
+                    bookmarks server stop
+                    bookmarks server start
+                    popd &>/dev/null
+                    return
+                    ;;
+                start)
+                    shift
+                    local port="${1:-8000}"
+                    pid_file="$PWD/server.pid"
+                    if [ -f "$pid_file" ]; then
+                        pid=$(cat "$pid_file")
+                        # check if process is running
+                        if ps -p "$pid" > /dev/null; then
+                            log info "Server already running"
+                            return 0
+                        fi
+                        rm "$pid_file"
+                    fi
+                    log info "Starting server on port $port"
+                    # Start the server in the background
+                    python server.py "$port" &>/dev/null &
+                    result=$?
+                    pid=$!
+                    echo "$pid" > "$pid_file"
 
-            popd &>/dev/null
-            return
+                    popd &>/dev/null
+                    return
+                    ;;
+                *)
+                    bookmarks server start "$@"
+                    popd &>/dev/null
+                    return
+                    ;;
+                esac
             ;;
         delete)
             shift
