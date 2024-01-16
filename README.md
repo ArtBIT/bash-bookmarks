@@ -7,7 +7,7 @@ CLI-first plain-text bookmarks manager.
 
 Over the years I've accumulated over 10k bookmarks in Pocket. Navigating that amount of items is slow, and incredibly hard to maintain. Being a CLI-first person, I've decided to create a simple bookmarks manager that will allow me to quickly search and open bookmarks from the terminal.
 
-To make it work, I've created a custom protocol handler for `bookmarks://...` uri scheme, and a bookmaklet that will allow me to quickly add bookmarks to the database from the browser.
+To make it work, I've created a custom protocol handler for `bookmarks://...` uri scheme, and a bookmaklet that will allow me to quickly add bookmarks to the database from the browser. I've later made a [Firefox Add-On](https://github.com/ArtBIT/bash-bookmarks-firefox-add-on) to make things even more seamless.
 
 A really handy feature of bash-bookmarks is the ability to bookmark local files or filepaths. This is especially useful when you have a lot of projects and you want to quickly navigate to a specific file.
 
