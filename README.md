@@ -39,15 +39,52 @@ b bash-b
 
 ```
 
+# Import
+
+You can export your browser bookmarks to a [bookmarks HTML file](https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/platform-apis/aa753582%28v%3Dvs.85%29) and then import the bookmarks to bash-bookmarks.
+
+```
+b import bookmarks.html
+```
+
+# Configuration
+
+You can create an `.env` file in `$HOME/.bookmarks.env` where you can specify your prefered configuration:
+
+```
+# Specify the directory where you want to store your bookmarks
+BOOKMARKS_DIR="${HOME}/bookmarks"
+
+# Specify the editor that you want to use to edit your bookmarks
+MARKDOWN_EDITOR="vim"
+
+# Specify the viewer that you want to use to view your bookmarks
+MARKDOWN_VIEWER="glow"
+
+# Specify the browser that you want to use to open your bookmarks
+BOOKMARKS_BROWSER="firefox-nightly"
+```
+
+You can have multiple `.env` files and pass the one that you want to use via the `--env` param:
+
+```
+b --env ~/bookmarks-work.env
+```
+
+```
+b --env ~/bookmarks-local.env
+```
+
+
+
 # Tips:
 
 Be sure to source the `.bookmarksrc` file in your `.bashrc` or `.zshrc` file. This will define some handy aliases and functions.
 
 To quickly bookmark the current directory by typing `ba .` or `ba $(pwd)`.
 
-You can also paste a URI from the clipboard by typing `b paste`.
+You can export your Pinterest pins to a bookmarks.html file using a script like [PinBack](https://github.com/pinbackit/pinback), and then import it to bash-bookmarks.
 
-Or copy the URI into the clipboard by typing `b copy`
 
 
 # Demo
