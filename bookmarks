@@ -45,6 +45,7 @@ bookmarks_usage() {
     echo "  --uri           URI of the bookmark, can be a URL or a file path"
     echo "  --category      Category of the bookmark"
     echo "  --tags          Tags of the bookmark"
+    echo "  --force         Force the operation, do not ask for confirmation"
     echo "  --name          Name of the bookmark file"
     echo "  --debug         Enable debug mode"
     echo "  --verbose       Enable verbose mode"
@@ -417,7 +418,7 @@ create_bookmark() {
         mkdir -p "$category"
     fi
     local filename="$category/$(slugify "$name").md"
-    if [ -f "$filename" ]; then
+    if [ -f "$filename" ] && [ "${BOOKMARKS_FORCE}" -ne 1 ]; then
         bookmarks_log critical "File already exists: $filename, skipping" && return 1
     fi
 
@@ -650,6 +651,7 @@ bookmarks() {
     BOOKMARKS_DRY_RUN=0
     BOOKMARKS_DEBUG=""
     BOOKMARKS_ENV=""
+    BOOKMARKS_FORCE=0
 
     # default env file
     bookmarks_env "${SCRIPT_DIR}/.bookmarks.env"
@@ -669,7 +671,25 @@ bookmarks() {
                 ;;
             --dir)
                 BOOKMARKS_DIR="$2"
+                # if relative path
+                if [[ "$BOOKMARKS_DIR" != /* ]] && [[ "$BOOKMARKS_DIR" != ~* ]] && [[ "$BOOKMARKS_DIR" != ./* ]]; then
+                    BOOKMARKS_DIR="${PWD}/${BOOKMARKS_DIR}"
+                fi
+                if [ ! -d "$BOOKMARKS_DIR" ]; then
+                    bookmarks_log critical "Directory not found: $BOOKMARKS_DIR"
+                    # ask to create it
+                    if [ "${BOOKMARKS_FORCE}" -eq 1 ] || confirm "Do you want to create it?"; then
+                        mkdir -p "$BOOKMARKS_DIR"
+                    else
+                        bookmarks_log info "Aborting"
+                        return 1
+                    fi
+                fi
                 shift 2
+                ;;
+            --force)
+                BOOKMARKS_FORCE=1
+                shift
                 ;;
             --verbose)
                 BOOKMARKS_DEBUG="verbose"

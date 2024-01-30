@@ -47,6 +47,16 @@ You can export your browser bookmarks to a [bookmarks HTML file](https://learn.m
 b import bookmarks.html
 ```
 
+It is good idea to first do a dry run
+```
+b --dry-run import bookmarks.html
+```
+
+Or to import it to a completely separate bookmarks directory
+```
+b --dir some_temp_dir import bookmarks.html
+```
+
 # Configuration
 
 You can create an `.env` file in `$HOME/.bookmarks.env` where you can specify your prefered configuration:
