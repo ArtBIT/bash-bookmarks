@@ -144,7 +144,7 @@ get_title_from_uri() {
     [ -z "$uri" ] && bookmarks_log critical "No URI provided" && return 1
 
     if is_url "$uri"; then
-        curl -s --user-agent "${BOOKMARKS_USER_AGENT}" "$uri" | grep -oP '(?<=<title>).*?(?=</title>)'
+        curl -s --location --connect-timeout 30 --max-time 30 --user-agent "${BOOKMARKS_USER_AGENT}" "$uri" | grep -oP '(?<=<title>).*?(?=</title>)'
     elif is_file "$uri"; then
         # if file is pdf or a document try to get the title from the metadata
         local extension=$(echo "$uri" | grep -oP '\.[a-zA-Z0-9]+$')
@@ -297,7 +297,7 @@ is_local_file() {
 is_uri_accessible() {
     local uri="$1"
     if is_url "$uri"; then
-        http_status=$(curl -s --user-agent "${BOOKMARKS_USER_AGENT}" --head "$uri" | head -n 1 | grep "HTTP/[0-9.]\+ [12345].." | cut -d " " -f 2)
+        http_status=$(curl -s --location --connect-timeout 30 --max-time 30 --user-agent "${BOOKMARKS_USER_AGENT}" --head "$uri" | head -n 1 | grep "HTTP/[0-9.]\+ [12345].." | cut -d " " -f 2)
         bookmarks_log debug "HTTP status code: $http_status"
         # check if status code is 2xx or 3xx
         [[ "$http_status" =~ ^[23] ]] && return 0 || return 1
@@ -383,6 +383,11 @@ create_bookmark() {
         fi
     fi
 
+    local title_check="$category/$(slugify "$title").md"
+    if [ -f "$title_check" ]; then
+        # try and fetch the title from the URI
+        title=""
+    fi
     # If title is empty, try to get it from URI
     if [ -z "$title" ]; then
         title=$(get_title_from_uri "$uri")
@@ -559,6 +564,7 @@ bookmarks_import() {
     # For the bookmarks HTML format see:
     # https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/platform-apis/aa753582(v=vs.85)
 
+
     # keep a stack of folders and subfolders in order to keep track of
     # the current subfolder level
     local path_parts=()
@@ -644,6 +650,9 @@ bookmarks() {
     BOOKMARKS_DRY_RUN=0
     BOOKMARKS_DEBUG=""
     BOOKMARKS_ENV=""
+
+    # default env file
+    bookmarks_env "${SCRIPT_DIR}/.bookmarks.env"
     while true; do
         case "$1" in
             --dry-run)
@@ -658,6 +667,10 @@ bookmarks() {
                 BOOKMARKS_DEBUG="debug"
                 shift
                 ;;
+            --dir)
+                BOOKMARKS_DIR="$2"
+                shift 2
+                ;;
             --verbose)
                 BOOKMARKS_DEBUG="verbose"
                 shift
@@ -667,9 +680,6 @@ bookmarks() {
                 ;;
         esac
     done
-
-    # default env file
-    bookmarks_env "${SCRIPT_DIR}/.bookmarks.env"
     # user provided env file
     bookmarks_env "${BOOKMARKS_ENV}"
 
