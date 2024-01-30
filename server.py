@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
     Create simple HTTP server to handle requests from client, get the
     search value, use it to fuzzy search the files in the directory and
