@@ -18,6 +18,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 #   grep            For filtering files by content
 #
 
+BOOKMARKS_CURL_OPTIONS="-s --location --connect-timeout 30 --max-time 30"
+
 bookmarks_env() {
     local env_file="${1:-$HOME/.bookmarks.env}"
     if [ -f "${env_file}" ]; then
@@ -140,12 +142,17 @@ get_uri_from_file() {
     echo "$uri"
 }
 
+# follow redirects and return the final URI
+get_final_uri() {
+    curl $BOOKMARKS_CURL_OPTIONS -o /dev/null -w %{url_effective} "$1"
+}
+
 get_title_from_uri() {
     local uri="$1"
     [ -z "$uri" ] && bookmarks_log critical "No URI provided" && return 1
 
     if is_url "$uri"; then
-        curl -s --location --connect-timeout 30 --max-time 30 --user-agent "${BOOKMARKS_USER_AGENT}" "$uri" | grep -oP '(?<=<title>).*?(?=</title>)'
+        curl $BOOKMARKS_CURL_OPTIONS --user-agent "${BOOKMARKS_USER_AGENT}" "$uri" | grep -oP '(?<=<title>).*?(?=</title>)'
     elif is_file "$uri"; then
         # if file is pdf or a document try to get the title from the metadata
         local extension=$(echo "$uri" | grep -oP '\.[a-zA-Z0-9]+$')
@@ -298,7 +305,7 @@ is_local_file() {
 is_uri_accessible() {
     local uri="$1"
     if is_url "$uri"; then
-        http_status=$(curl -s --location --connect-timeout 30 --max-time 30 --user-agent "${BOOKMARKS_USER_AGENT}" --head "$uri" | head -n 1 | grep "HTTP/[0-9.]\+ [12345].." | cut -d " " -f 2)
+        http_status=$(curl $BOOKMARKS_CURL_OPTIONS --user-agent "${BOOKMARKS_USER_AGENT}" --head "$uri" | head -n 1 | grep "HTTP/[0-9.]\+ [12345].." | cut -d " " -f 2)
         bookmarks_log debug "HTTP status code: $http_status"
         # check if status code is 2xx or 3xx
         [[ "$http_status" =~ ^[23] ]] && return 0 || return 1
@@ -370,6 +377,10 @@ create_bookmark() {
                 ;;
         esac
     done
+
+    if is_url "$uri"; then
+        uri=$(get_final_uri "$uri")
+    fi
 
     # If uri is not working skip it
     if ! is_uri_accessible "$uri"; then
@@ -579,10 +590,11 @@ bookmarks_import() {
     while IFS= read -r line; do
         bookmarks_log debug "Line: $line"
         # if line is a folder
-        if [[ "$line" =~ ^\<DT\>\<H3 ]]; then
+        if (shopt -s nocasematch;
+            [[ "$line" =~ ^\<dt\>\<h3 ]]); then
             bookmarks_log debug "Folder: $line"
             # get folder name
-            folder=$(echo "$line" | grep -oP '(?<=\>)[^>]*(?=\<\/H3\>)')
+            folder=$(echo "$line" | grep -ioP '(?<=\>)[^>]*(?=\<\/h3\>)')
             folder=$(slugify "$folder")
             bookmarks_log debug "Folder name: $folder"
             # push the folder to the stack
@@ -598,22 +610,23 @@ bookmarks_import() {
             # reset the current tags
             tags=""
         # if line is a bookmark
-        elif [[ "$line" =~ ^\<DT\>\<A ]]; then
+        elif (shopt -s nocasematch;
+            [[ "$line" =~ ^\<(dt|li)\>\<a ]]); then
             bookmarks_log debug "Bookmark: $line"
             # get bookmark title
-            title=$(echo "$line" | grep -oP '(?<=\>)[^>]*(?=\<\/A\>)' | sed 's/  */ /g')
+            title=$(echo "$line" | grep -ioP '(?<=\>)[^>]*(?=\<\/a\>)' | sed 's/  */ /g')
             bookmarks_log debug "Bookmark title: $title"
             # get bookmark uri
-            uri=$(echo "$line" | grep -oP '(?<=HREF=\")[^"]*(?=\" )')
+            uri=$(echo "$line" | grep -ioP '(?<=href=\")[^"]*(?=\" )')
             bookmarks_log debug "Bookmark uri: $uri"
             # get bookmark creation date
-            creation_date=$(echo "$line" | grep -oP '(?<=ADD_DATE=\")[^"]*(?=\" )')
+            creation_date=$(echo "$line" | grep -ioP '(?<=add_date=\")[^"]*(?=\" )')
             bookmarks_log debug "Bookmark creation date: $creation_date"
             # get bookmark modification date
-            modification_date=$(echo "$line" | grep -oP '(?<=LAST_MODIFIED=\")[^"]*(?=\"\>)')
+            modification_date=$(echo "$line" | grep -ioP '(?<=last_modified=\")[^"]*(?=\"\>)')
             bookmarks_log debug "Bookmark modification date: $modification_date"
             # get bookmark tags
-            tags=$(echo "$line" | grep -oP '(?<=TAGS=\")[^"]*(?=\"\>)')
+            tags=$(echo "$line" | grep -ioP '(?<=tags=\")[^"]*(?=\"\>)')
             bookmarks_log debug "Bookmark tags: $tags"
 
             # create the bookmark file
@@ -621,7 +634,8 @@ bookmarks_import() {
                 create_bookmark --uri "$uri" --title "$title" --category "$category" --tags "$tags"
             fi
 
-        elif [[ "$line" =~ ^\<\/DL\> ]]; then
+        elif (shopt -s nocasematch;
+            [[ "$line" =~ ^\<\/dl\> ]]); then
             bookmarks_log debug "Closing folder: ${path_parts[-1]}"
             path_parts=("${path_parts[@]:0:${#path_parts[@]}-1}")
             path=$(echo "${path_parts[@]}" | tr " " "/")
