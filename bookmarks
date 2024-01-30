@@ -18,17 +18,13 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 #   grep            For filtering files by content
 #
 
-# Configuration
-# -------------
-# You can override these variables in your .bashrc or .zshrc
-# Specify the editor you want to use to edit your bookmarks
-MARKDOWN_EDITOR=${EDITOR:-"vim"}
-# Specify the viewer you want to use to view your bookmarks
-MARKDOWN_VIEWER=${MARKDOWN_VIEWER:-"glow"}
-# Specify the directory where your bookmarks are stored
-BOOKMARKS_DIR=${BOOKMARKS_DIR:-"$HOME/Documents/bookmarks/data"}
-# http://www.ietf.org/rfc/rfc2068.txt
-BOOKMARKS_USER_AGENT="Bash-Bookmarks/1.0 (X11; Linux x86_64; rv:10.0)"
+bookmarks_env() {
+    local env_file="${1:-$HOME/.bookmarks.env}"
+    if [ -f "${env_file}" ]; then
+        bookmarks_log debug "Using env file: $env_file"
+        source "${env_file}"
+    fi
+}
 
 bookmarks_usage() {
     echo "Usage: bookmarks [command] [options]"
@@ -42,6 +38,7 @@ bookmarks_usage() {
     echo "  suggest [query] Suggest bookmarks by title, tags, etc."
     echo "  server [port]   Start a server to search bookmarks by title, tags, etc."
     echo "  export [file]   Export bookmarks to a HTML file"
+    echo "  import [file]   Import bookmarks from a HTML file"
     echo ""
     echo "Options:"
     echo "  --title         Title of the bookmark"
@@ -49,6 +46,10 @@ bookmarks_usage() {
     echo "  --category      Category of the bookmark"
     echo "  --tags          Tags of the bookmark"
     echo "  --name          Name of the bookmark file"
+    echo "  --debug         Enable debug mode"
+    echo "  --verbose       Enable verbose mode"
+    echo "  --dry-run       Do not execute any command, just print what would be executed"
+    echo "  --env           Path to an env file"
     echo "  [query]         Query to filter bookmarks, you can filter by title, tags, category, etc."
     echo ""
     echo "Examples:"
@@ -90,12 +91,12 @@ log_level_num() {
 }
 
 # Log a message to stderr and to the log file
-log() {
-    DEBUG=${DEBUG:-"info"}
+bookmarks_log() {
     local level="$1"
     shift
+
     local level_num=$(log_level_num "$level")
-    local debug_level_num=$(log_level_num "$DEBUG")
+    local debug_level_num=$(log_level_num "${BOOKMARKS_DEBUG}")
 
     if [ "$level_num" -gt "$debug_level_num" ]; then
         return 0
@@ -103,12 +104,6 @@ log() {
 
     echo "[$level] $@" >&2
     echo "[$(date +"%Y-%m-%d %H:%M:%S")] $@" >> $SCRIPT_DIR/bookmarks.log
-}
-
-# Log a message to stderr and to the log file and exit with error
-die() {
-    log critical "$@" >&2
-    exit 1
 }
 
 # Decode URL encoded string
@@ -138,7 +133,7 @@ get_os() {
 
 get_uri_from_file() {
     local file="$1"
-    [ -z "$file" ] && die "No file provided"
+    [ -z "$file" ] && bookmarks_log critical "No file provided" && return 1
 
     local uri=$(cat "$file" | grep "^uri:" | sed -e "s/^uri: //")
     echo "$uri"
@@ -146,10 +141,10 @@ get_uri_from_file() {
 
 get_title_from_uri() {
     local uri="$1"
-    [ -z "$uri" ] && die "No URI provided"
+    [ -z "$uri" ] && bookmarks_log critical "No URI provided" && return 1
 
     if is_url "$uri"; then
-        curl -s --user-agent "$BOOKMARKS_USER_AGENT" "$uri" | grep -oP '(?<=<title>).*?(?=</title>)'
+        curl -s --user-agent "${BOOKMARKS_USER_AGENT}" "$uri" | grep -oP '(?<=<title>).*?(?=</title>)'
     elif is_file "$uri"; then
         # if file is pdf or a document try to get the title from the metadata
         local extension=$(echo "$uri" | grep -oP '\.[a-zA-Z0-9]+$')
@@ -161,14 +156,14 @@ get_title_from_uri() {
             basename "$uri"
         fi
     else
-        die "Invalid URI"
+        bookmarks_log critical "Invalid URI" && return 1
     fi
 }
 
 # Transform a string to a slug
 # Example: "My title - Söme äccents" -> "my-title-some-accents"
 slugify() {
-    result="$@"
+    local result="$@"
 
     # remove accents
     result=$(echo "$result" | iconv -f utf8 -t ascii//TRANSLIT)
@@ -180,22 +175,34 @@ slugify() {
 }
 
 display_markdown() {
-    [ -z "$1" ] && die "No file provided"
-    echo "$1" | xargs $MARKDOWN_VIEWER
+    [ -z "$1" ] && bookmarks_log critical "No file provided" && return 1
+
+    if [ "${BOOKMARKS_DRY_RUN}" -ne 1 ]; then
+        echo "$1" | xargs $MARKDOWN_VIEWER
+    fi
 }
 
 edit_markdown() {
-    [ -z "$1" ] && die "No file provided"
-    log debug "Opening $1 in $MARKDOWN_EDITOR..."
-    "$MARKDOWN_EDITOR" "$1"
+    [ -z "$1" ] && bookmarks_log critical "No file provided" && return 1
+    bookmarks_log debug "Opening $1 in $MARKDOWN_EDITOR..."
+    if [ "${BOOKMARKS_DRY_RUN}" -ne 1 ]; then
+        "${MARKDOWN_EDITOR}" "$1"
+    fi
 }
 
 open_uri() {
+    if [ "${BOOKMARKS_DRY_RUN}" -eq 1 ]; then
+        return 0
+    fi
+
     local uri="$1"
-    log debug "Opening [$uri]"
-    [ -z "$uri" ] && die "No URI provided"
+    bookmarks_log debug "Opening [$uri]"
+    [ -z "$uri" ] && bookmarks_log critical "No URI provided" && return 1
+    # check if script is used in a pipe
+    
+
     # check if uri is an URL
-    if [[ "$uri" =~ ^https?:// ]]; then
+    if is_url "$uri"; then
         os_open "$uri"
         return 0
     fi
@@ -205,30 +212,38 @@ open_uri() {
 
         # if file is a directory, cd into it
         if [ -d "$file" ]; then
-            log debug "Opening directory: $file"
-            echo "cd \"$file\""
+            bookmarks_log debug "Opening directory: $file"
+            cd "$file"
         else
             $EDITOR "$file"
         fi
         return 0
     fi
-    log error "Unsuported URI: $1"
+    bookmarks_log error "Unsuported URI: $1"
 }
 
 os_open() {
-    [ -z "$1" ] && die "No URI provided"
+    if [ "${BOOKMARKS_DRY_RUN}" -eq 1 ]; then
+        return 0
+    fi
 
-    log debug "Opening $1 in browser..."
+    [ -z "$1" ] && bookmarks_log critical "No URI provided" && return 1
+
+    bookmarks_log debug "Opening $1 in browser..."
     local os=$(get_os)
     case "$os" in
         linux)
-            xdg-open "$1"
+            if is_url "$1"; then
+                $BOOKMARKS_BROWSER "$1"
+            else
+                xdg-open "$1"
+            fi
             ;;
         mac)
             open "$1"
             ;;
         *)
-            die "Unsuported OS: $os"
+            bookmarks_log critical "Unsuported OS: $os" && return 1
             ;;
     esac
 }
@@ -244,7 +259,7 @@ fuzzy_file() {
     if [ ! -z "$file" ]; then
         realpath "$file"
     else
-        log error "No file selected"
+        bookmarks_log error "No file selected"
     fi
 }
 
@@ -282,8 +297,8 @@ is_local_file() {
 is_uri_accessible() {
     local uri="$1"
     if is_url "$uri"; then
-        http_status=$(curl -s --user-agent "$BOOKMARKS_USER_AGENT" --head "$uri" | head -n 1 | grep "HTTP/[0-9.]\+ [12345].." | cut -d " " -f 2)
-        log debug "HTTP status code: $http_status"
+        http_status=$(curl -s --user-agent "${BOOKMARKS_USER_AGENT}" --head "$uri" | head -n 1 | grep "HTTP/[0-9.]\+ [12345].." | cut -d " " -f 2)
+        bookmarks_log debug "HTTP status code: $http_status"
         # check if status code is 2xx or 3xx
         [[ "$http_status" =~ ^[23] ]] && return 0 || return 1
     elif is_file "$uri"; then
@@ -312,47 +327,42 @@ create_bookmark() {
     while true; do
         case "$1" in
             --title)
-                shift
-                local title=$(urldecode "$1")
-                shift
+                local title=$(urldecode "$2")
+                shift 2
                 ;;
             --uri)
-                shift
-                local uri=$(urldecode "$1")
+                local uri=$(urldecode "$2")
+                shift 2
                 if is_file "$uri"; then
                     # expand dot character
                     # if uri equals  to dot
                     if [[ "$uri" = "." ]]; then
-                        uri="$OLDPWD"
+                        uri="${BOOKMARKS_OLDPWD}"
                     elif [[ "$uri" = ".." ]]; then
-                        uri="$OLDPWD/.."
+                        uri="${BOOKMARKS_OLDPWD}/.."
                     # expand ~ character
                     elif [[ "$uri" =~ ^~ ]]; then
                         uri="${uri/#\~/$HOME}"
                     # expand relative paths
                     elif [[ "$uri" =~ ^\./ ]]; then
-                        uri="${uri/#./$OLDPWD}"
+                        uri="${uri/#./$BOOKMARKS_OLDPWD}"
                     elif [[ "$uri" =~ ^\.\./ ]]; then
-                        uri="${uri/#../$OLDPWD/..}"
+                        uri="${uri/#../$BOOKMARKS_OLDPWD/..}"
                     fi
                     uri=$(realpath "${uri#file://}")
                 fi
-                shift
                 ;;
             --category)
-                shift
-                category=$(urldecode "$1")
-                shift
+                category=$(urldecode "$2")
+                shift 2
                 ;;
             --tags)
-                shift
-                local tags=$(urldecode "$1")
-                shift
+                local tags=$(urldecode "$2")
+                shift 2
                 ;;
             --name)
-                shift
-                local name=$(urldecode "$1")
-                shift
+                local name=$(urldecode "$2")
+                shift 2
                 ;;
             *)
                 break
@@ -362,7 +372,7 @@ create_bookmark() {
 
     # If uri is not working skip it
     if ! is_uri_accessible "$uri"; then
-        die "URI is not accessible: $uri"
+        bookmarks_log critical "URI is not accessible: $uri" && return 1
     fi
 
     if [ -z "$category" ]; then
@@ -386,24 +396,30 @@ create_bookmark() {
         local name="$title"
     fi
 
-    log info "Creating bookmark:"
-    log info "  Title: $title"
-    log info "  URI: $uri"
-    log info "  Category: $category"
-    log info "  Tags: $tags"
-    log info "  Name: $name"
+    bookmarks_log info "Creating bookmark:"
+    bookmarks_log info "  Title: $title"
+    bookmarks_log info "  URI: $uri"
+    bookmarks_log info "  Category: $category"
+    bookmarks_log info "  Tags: $tags"
+    bookmarks_log info "  Name: $name"
 
-    [ -z "$title" ]    && die "Title cannot be empty for $uri"
-    [ -z "$uri" ]      && die "URI cannot be empty for $title"
-    [ -z "$category" ] && die "Category cannot be empty for $title"
+    [ -z "$title" ]    && bookmarks_log critical "Title cannot be empty for $uri" && return 1
+    [ -z "$uri" ]      && bookmarks_log critical "URI cannot be empty for $title" && return 1
+    [ -z "$category" ] && bookmarks_log critical "Category cannot be empty for $title" && return 1
 
     category=$(slugify "$category")
-    mkdir -p "$category"
+    if [ "${BOOKMARKS_DRY_RUN}" -ne 1 ]; then
+        mkdir -p "$category"
+    fi
     local filename="$category/$(slugify "$name").md"
     if [ -f "$filename" ]; then
-        die "File already exists: $filename, skipping"
+        bookmarks_log critical "File already exists: $filename, skipping" && return 1
     fi
 
+
+    if [ "${BOOKMARKS_DRY_RUN}" -eq 1 ]; then
+        return 0
+    fi
 
     # Write template to file
     cat > "$filename" <<EOF
@@ -415,7 +431,7 @@ tags: [$tags]
 [$uri]($uri)
 EOF
     
-    log info "Created: $BOOKMARKS_DIR/$filename"
+    bookmarks_log info "Created: $BOOKMARKS_DIR/$filename"
 }
 
 bookmarks_progressbar() {
@@ -470,8 +486,8 @@ bookmarks_export() {
         file_index=$((file_index+1))
         # move cursor to the beginning of the line
         bookmarks_progressbar $file_index $total_files 80 >&2
-        log debug "---"
-        log debug "Exporting bookmark: $file"
+        bookmarks_log debug "---"
+        bookmarks_log debug "Exporting bookmark: $file"
         # Keep track of current subfolder level
         # Split the path into parts
         # remove the ./ prefix
@@ -487,7 +503,7 @@ bookmarks_export() {
             if [[ "${current_path_parts[$i]}" != "${path_parts[$i]}" ]]; then
                 # while the current_path_parts length is greater than the index, pop the last element of the stack
                 while [ "${#current_path_parts[@]}" -gt "$i" ]; do
-                    log debug "Closing folder: ${current_path_parts[-1]}"
+                    bookmarks_log debug "Closing folder: ${current_path_parts[-1]}"
                     current_path_parts=("${current_path_parts[@]:0:${#current_path_parts[@]}-1}")
                     # close one folder level
                     bookmarks_html="$bookmarks_html</DL><p>"
@@ -495,10 +511,10 @@ bookmarks_export() {
             else
                 continue
             fi
-            log debug "Opening folder: ${path_parts[$i]}"
+            bookmarks_log debug "Opening folder: ${path_parts[$i]}"
             current_path_parts+=("${path_parts[$i]}")
             current_path=$(echo "${current_path_parts[@]}" | tr " " "/")
-            log debug "Current path: '$current_path'"
+            bookmarks_log debug "Current path: '$current_path'"
             # get creation date of the current_path_parts
             creation_date=$(stat -c %y "./$current_path")
             # add a new folder to the HTML
@@ -520,7 +536,7 @@ bookmarks_export() {
 
     # if current_path_parts is not empty, close all folders
     while [ "${#current_path_parts[@]}" -gt 0 ]; do
-        log debug "Closing folder: ${current_path_parts[-1]}"
+        bookmarks_log debug "Closing folder: ${current_path_parts[-1]}"
         current_path_parts=("${current_path_parts[@]:0:${#current_path_parts[@]}-1}")
         # close one folder level
         bookmarks_html="$bookmarks_html</DL><p>"
@@ -531,6 +547,84 @@ bookmarks_export() {
     # close main folder
     bookmarks_html="$bookmarks_html</DL>"
     echo "$bookmarks_html"
+}
+
+bookmarks_import() {
+    BOOKMARKS_FILE="$1"
+    bookmarks_log info "Importing bookmarks from $BOOKMARKS_FILE"
+    bookmarks_log info "This may take a while..."
+
+
+    # import bookmarks from a HTML file
+    # For the bookmarks HTML format see:
+    # https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/platform-apis/aa753582(v=vs.85)
+
+    # keep a stack of folders and subfolders in order to keep track of
+    # the current subfolder level
+    local path_parts=()
+    local path=""
+    local category=""
+    local tags=""
+    local title=""
+    local uri=""
+
+    # read each line from the file and process it
+    while IFS= read -r line; do
+        bookmarks_log debug "Line: $line"
+        # if line is a folder
+        if [[ "$line" =~ ^\<DT\>\<H3 ]]; then
+            bookmarks_log debug "Folder: $line"
+            # get folder name
+            folder=$(echo "$line" | grep -oP '(?<=\>)[^>]*(?=\<\/H3\>)')
+            folder=$(slugify "$folder")
+            bookmarks_log debug "Folder name: $folder"
+            # push the folder to the stack
+            path_parts+=("$folder")
+            path=$(echo "${path_parts[@]}" | tr " " "/")
+            bookmarks_log debug "Current path: '$path'"
+            # create the folder
+            if [ "${BOOKMARKS_DRY_RUN}" -ne 1 ]; then
+                mkdir -p "$path"
+            fi
+            # set the current category
+            category="$path"
+            # reset the current tags
+            tags=""
+        # if line is a bookmark
+        elif [[ "$line" =~ ^\<DT\>\<A ]]; then
+            bookmarks_log debug "Bookmark: $line"
+            # get bookmark title
+            title=$(echo "$line" | grep -oP '(?<=\>)[^>]*(?=\<\/A\>)' | sed 's/  */ /g')
+            bookmarks_log debug "Bookmark title: $title"
+            # get bookmark uri
+            uri=$(echo "$line" | grep -oP '(?<=HREF=\")[^"]*(?=\" )')
+            bookmarks_log debug "Bookmark uri: $uri"
+            # get bookmark creation date
+            creation_date=$(echo "$line" | grep -oP '(?<=ADD_DATE=\")[^"]*(?=\" )')
+            bookmarks_log debug "Bookmark creation date: $creation_date"
+            # get bookmark modification date
+            modification_date=$(echo "$line" | grep -oP '(?<=LAST_MODIFIED=\")[^"]*(?=\"\>)')
+            bookmarks_log debug "Bookmark modification date: $modification_date"
+            # get bookmark tags
+            tags=$(echo "$line" | grep -oP '(?<=TAGS=\")[^"]*(?=\"\>)')
+            bookmarks_log debug "Bookmark tags: $tags"
+
+            # create the bookmark file
+            if [ "${BOOKMARKS_DRY_RUN}" -ne 1 ]; then
+                create_bookmark --uri "$uri" --title "$title" --category "$category" --tags "$tags"
+            fi
+
+        elif [[ "$line" =~ ^\<\/DL\> ]]; then
+            bookmarks_log debug "Closing folder: ${path_parts[-1]}"
+            path_parts=("${path_parts[@]:0:${#path_parts[@]}-1}")
+            path=$(echo "${path_parts[@]}" | tr " " "/")
+            bookmarks_log debug "Current path: '$path'"
+            # set the current category
+            category="$path"
+            # reset the current tags
+            tags=""
+        fi
+    done < "${BOOKMARKS_FILE}"
 }
 
 
@@ -546,9 +640,41 @@ bookmarks_export() {
 #   help        Show help
 
 bookmarks() {
-    OLDPWD="$PWD"
-    pushd "$BOOKMARKS_DIR" &>/dev/null
     local result=0
+    BOOKMARKS_DRY_RUN=0
+    BOOKMARKS_DEBUG=""
+    BOOKMARKS_ENV=""
+    while true; do
+        case "$1" in
+            --dry-run)
+                BOOKMARKS_DRY_RUN=1
+                shift
+                ;;
+            --env)
+                BOOKMARKS_ENV="$2"
+                shift 2
+                ;;
+            --debug)
+                BOOKMARKS_DEBUG="debug"
+                shift
+                ;;
+            --verbose)
+                BOOKMARKS_DEBUG="verbose"
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    # default env file
+    bookmarks_env "${SCRIPT_DIR}/.bookmarks.env"
+    # user provided env file
+    bookmarks_env "${BOOKMARKS_ENV}"
+
+    BOOKMARKS_OLDPWD="${PWD}"
+    pushd "${BOOKMARKS_DIR}" &>/dev/null
 
     case "$1" in
         add)
@@ -556,34 +682,37 @@ bookmarks() {
 
             # if there is only one argument and it is a valid URI, use it as the URI
             if [ "$#" -eq 1 ]; then
-                log info "Adding quick bookmark..."
+                bookmarks_log info "Adding quick bookmark..."
                 create_bookmark --uri "$1"
                 result=$?
             else
-                log info "Adding bookmark..."
+                bookmarks_log info "Adding bookmark..."
                 create_bookmark "$@"
                 result=$?
             fi
             ;;
 
+
         edit)
             shift
             local filename=$(fuzzy_file "$1")
-            [ -z "$filename" ] && die "No file found for tag: $1"
+            [ -z "$filename" ] && bookmarks_log critical "No file found for tag: $1" && return 1
 
             edit_markdown "$filename"
             result=$?
             ;;
 
+
         open)
             shift
             local file=$(fuzzy_file "$1")
-            [ -z "$file" ] && die "No file found for tag: $1"
+            [ -z "$file" ] && bookmarks_log critical "No file found for tag: $1" && return 1
 
             local uri=$(grep -oP '(?<=uri: ).*' "$file")
             open_uri "$uri"
             result=$?
             ;;
+
 
         suggest)
             shift
@@ -593,8 +722,8 @@ bookmarks() {
                 echo "[]"
                 return 0
             fi
-            local files=$(fuzzy_contents "$QUERY")
-            [ -z "$files" ] && die "No file found for tag: $QUERY"
+            local files=$(fuzzy_contents "${QUERY}")
+            [ -z "$files" ] && bookmarks_log critical "No file found for tag: $QUERY" && return 1
 
             #limit to 20 results
             files=$(echo "$files" | head -n 20)
@@ -619,33 +748,35 @@ bookmarks() {
             
             result=$?
             ;;
+
+
         server)
             shift
             cd ..
             case "$1" in
                 status)
-                    pid_file="$PWD/server.pid"
+                    pid_file="${PWD}/server.pid"
                     if [ -f "$pid_file" ]; then
                         pid=$(cat "$pid_file")
                         # check if process is running
                         if ps -p "$pid" > /dev/null; then
-                            log info "Server is running"
+                            bookmarks_log info "Server is running"
                         else
-                            log info "Server not running"
+                            bookmarks_log info "Server not running"
                         fi
                     else
-                        log info "Server not running"
+                        bookmarks_log info "Server not running"
                     fi
                     popd &>/dev/null
                     return
                     ;;
                 stop)
-                    pid_file="$PWD/server.pid"
+                    pid_file="${PWD}/server.pid"
                     if [ ! -f "$pid_file" ]; then
-                        log info "Server not running"
+                        bookmarks_log info "Server not running"
                         return 0
                     fi
-                    log info "Stopping server"
+                    bookmarks_log info "Stopping server"
                     pid=$(cat "$pid_file")
                     kill "$pid"
                     rm "$pid_file"
@@ -661,22 +792,23 @@ bookmarks() {
                 start)
                     shift
                     local port="${1:-8000}"
-                    pid_file="$PWD/server.pid"
+                    pid_file="${PWD}/server.pid"
                     if [ -f "$pid_file" ]; then
                         pid=$(cat "$pid_file")
                         # check if process is running
                         if ps -p "$pid" > /dev/null; then
-                            log info "Server already running"
+                            bookmarks_log info "Server already running"
                             return 0
                         fi
                         rm "$pid_file"
                     fi
-                    log info "Starting server on port $port"
+                    bookmarks_log info "Starting server on port $port"
                     # Start the server in the background
                     python server.py "$port" &>/dev/null &
                     result=$?
                     pid=$!
                     echo "$pid" > "$pid_file"
+                    disown $pid
 
                     popd &>/dev/null
                     return
@@ -688,21 +820,25 @@ bookmarks() {
                     ;;
                 esac
             ;;
+
+
         delete)
             shift
             local file=$(fuzzy_file "$1")
-            [ -z "$file" ] && die "No file found for tag: $1"
+            [ -z "$file" ] && bookmarks_log critical "No file found for tag: $1" && return 1
 
-            log info "Deleting bookmark: $file"
+            bookmarks_log info "Deleting bookmark: $file"
             # confirm before deleting
             if ! confirm "Are you sure you want to delete $file?"; then
-                log info "Aborting"
+                bookmarks_log info "Aborting"
             else
                 # delete file
                 rm "$file"
                 result=$?
             fi
             ;;
+
+
         export)
             shift
             output_file="$1"
@@ -712,8 +848,25 @@ bookmarks() {
             html=$(bookmarks_export)
             popd &>/dev/null
             echo
-            echo -e "$html" > $output_file
+
+            if [ "${BOOKMARKS_DRY_RUN}" -ne 1 ]; then
+                echo -e "$html" > $output_file
+                return 0
+            fi
+            echo -e "$html"
             ;;
+
+
+        import)
+            shift
+            input_file="$1"
+            if [ -z "$input_file" ]; then
+                input_file="bookmarks.html"
+            fi
+            bookmarks_import $input_file
+            popd &>/dev/null
+            ;;
+
 
         help)
             shift
@@ -721,32 +874,45 @@ bookmarks() {
             result=$?
             ;;
 
+
         cd)
             shift
             local file=$(fuzzy_file "$1")
-            [ -z "$file" ] && die "No file found for tag: $1"
-            [ ! -f "$file" ] && die "File not found: $file"
+            [ -z "$file" ] && bookmarks_log critical "No file found for tag: $1" && return 1
+            [ ! -f "$file" ] && bookmarks_log critical "File not found: $file" && return 1
             uri=$(cat "$file" | grep ^uri | cut -d ' ' -f 2)
-            log debug "URI: $uri"
-            [ -z "$uri" ] && die "No URI found for file: $file"
+            bookmarks_log debug "URI: $uri"
+            [ -z "$uri" ] && bookmarks_log critical "No URI found for file: $file" && return 1
             # if the URI is a directory we want to cd into it
             popd &>/dev/null
 
             if is_directory "$uri"; then
-                echo "cd \"$uri\""
+                bookmarks_log debug "cd \"$uri\""
+                cd "$uri"
             elif is_file "$uri"; then
-                echo "cd \"$(dirname "$uri")\""
+                bookmarks_log debug "cd \"$(dirname "$uri")\""
+                cd "$(dirname "$uri")"
             fi
+            return
             ;;
+
+
         *)
             local file=$(fuzzy_file "$1")
-            [ -z "$file" ] && die "No file found for tag: $1"
-            [ ! -f "$file" ] && die "File not found: $file"
+            [ -z "$file" ] && bookmarks_log critical "No file found for tag: $1" && return 1
+            [ ! -f "$file" ] && bookmarks_log critical "File not found: $file" && return 1
             uri=$(cat "$file" | grep ^uri | cut -d ' ' -f 2)
-            [ -z "$uri" ] && die "No URI found for file: $file"
+            [ -z "$uri" ] && bookmarks_log critical "No URI found for file: $file" && return 1
             popd &>/dev/null
-            log info "Opening bookmark: $file"
-            open_uri "$uri"
+            bookmarks_log info "Opening bookmark: $file"
+
+            # check if inside of a pipe
+            if [ -t 1 ]; then
+                open_uri "$uri"
+            else
+                # if inside of a pipe, just echo the uri to stdout
+                echo "$uri"
+            fi
             return $?
             ;;
     esac
@@ -756,11 +922,8 @@ bookmarks() {
 }
 
 # if not sourced, run main
-if [ "$0" = "$BASH_SOURCE" ]; then
-    log debug "Running main: $@"
-    bookmarks_result=$(bookmarks "$@")
-    exit_code=$?
-    echo "$bookmarks_result"
-    (exit $exit_code)
+if [ "$0" = "${BASH_SOURCE}" ]; then
+    bookmarks_log debug "Running main: $@"
+    bookmarks "$@"
 fi
 
