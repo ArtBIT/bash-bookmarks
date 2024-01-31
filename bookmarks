@@ -659,13 +659,15 @@ bookmarks_import() {
 
 bookmarks() {
     local result=0
-    BOOKMARKS_DRY_RUN=0
-    BOOKMARKS_DEBUG=""
     BOOKMARKS_ENV=""
+    BOOKMARKS_DEBUG=""
     BOOKMARKS_FORCE=0
+    BOOKMARKS_DRY_RUN=0
 
     # default env file
     bookmarks_env "${SCRIPT_DIR}/.bookmarks.env"
+
+    # read options
     while true; do
         case "$1" in
             --dry-run)
@@ -711,9 +713,11 @@ bookmarks() {
                 ;;
         esac
     done
-    # user provided env file
+
+    # read user provided env file
     bookmarks_env "${BOOKMARKS_ENV}"
 
+    # read commands
     case "$1" in
         add)
             shift
@@ -805,6 +809,7 @@ bookmarks() {
                     fi
                     return
                     ;;
+
                 stop)
                     if [ ! -f "$BOOKMARKS_PID_FILE" ]; then
                         bookmarks_log info "Server not running"
@@ -816,11 +821,13 @@ bookmarks() {
                     rm "$BOOKMARKS_PID_FILE"
                     return
                     ;;
+
                 restart)
                     bookmarks server stop
                     bookmarks server start
                     return
                     ;;
+
                 start)
                     shift
                     local port="${1:-8000}"
@@ -843,8 +850,9 @@ bookmarks() {
 
                     return
                     ;;
+
                 *)
-                    bookmarks server start "$@"
+                    bookmarks server status "$@"
                     return
                     ;;
                 esac
