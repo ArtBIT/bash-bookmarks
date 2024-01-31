@@ -19,6 +19,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 #
 
 BOOKMARKS_CURL_OPTIONS="-s --location --connect-timeout 30 --max-time 30"
+BOOKMARKS_PID_FILE="/tmp/bookmarks-server.pid"
 
 bookmarks_env() {
     local env_file="${1:-$HOME/.bookmarks.env}"
@@ -88,7 +89,7 @@ log_level_num() {
             echo 1
             ;;
         *)
-            echo 1
+            echo 5
             ;;
     esac
 }
@@ -258,7 +259,7 @@ os_open() {
 
 # Search the bookmarks directory for a file using fzf
 fuzzy_file() {
-    local files=$(fdfind --type f -e md .)
+    local files=$(fdfind --type f -e md . "${BOOKMARKS_DIR}")
     # if "$1" is not empty, filter files by whether file contents contains "$1"
     if [ ! -z "$1" ]; then
         files=$(echo "$files" | xargs grep -l "$1")
@@ -274,7 +275,7 @@ fuzzy_file() {
 # Search all the files in the bookmarks directory for a string using fzf
 # and return the list of files that contain the string
 fuzzy_contents() {
-    local files=$(fdfind --type f -e md .)
+    local files=$(fdfind --type f -e md . "${$BOOKMARKS_DIR}")
     echo "$files" | xargs grep "" | fzf --filter="$1" | grep -o '^[^:]\+' | awk '!a[$0]++{print}'
 }
 
@@ -426,9 +427,9 @@ create_bookmark() {
 
     category=$(slugify "$category")
     if [ "${BOOKMARKS_DRY_RUN}" -ne 1 ]; then
-        mkdir -p "$category"
+        mkdir -p "${BOOKMARKS_DIR}/${category}"
     fi
-    local filename="$category/$(slugify "$name").md"
+    local filename="${BOOKMARKS_DIR}/${category}/$(slugify "$name").md"
     if [ -f "$filename" ] && [ "${BOOKMARKS_FORCE}" -ne 1 ]; then
         bookmarks_log critical "File already exists: $filename, skipping" && return 1
     fi
@@ -439,7 +440,7 @@ create_bookmark() {
     fi
 
     # Write template to file
-    cat > "$filename" <<EOF
+    cat > "${filename}" <<EOF
 ---
 title: $title
 uri: $uri
@@ -496,7 +497,7 @@ bookmarks_export() {
     bookmarks_html="$bookmarks_html<DL><p>"
 
     # get all files sorted by filepaths
-    local files=$(fdfind --type f -e md . | sort)
+    local files=$(fdfind --type f -e md  . "${BOOKMARKS_DIR}" | sort)
     local total_files=$(echo "$files" | wc -l)
     local file_index=0
     for file in $files; do
@@ -601,10 +602,6 @@ bookmarks_import() {
             path_parts+=("$folder")
             path=$(echo "${path_parts[@]}" | tr " " "/")
             bookmarks_log debug "Current path: '$path'"
-            # create the folder
-            if [ "${BOOKMARKS_DRY_RUN}" -ne 1 ]; then
-                mkdir -p "$path"
-            fi
             # set the current category
             category="$path"
             # reset the current tags
@@ -717,9 +714,6 @@ bookmarks() {
     # user provided env file
     bookmarks_env "${BOOKMARKS_ENV}"
 
-    BOOKMARKS_OLDPWD="${PWD}"
-    pushd "${BOOKMARKS_DIR}" &>/dev/null
-
     case "$1" in
         add)
             shift
@@ -796,12 +790,10 @@ bookmarks() {
 
         server)
             shift
-            cd ..
             case "$1" in
                 status)
-                    pid_file="${PWD}/server.pid"
-                    if [ -f "$pid_file" ]; then
-                        pid=$(cat "$pid_file")
+                    if [ -f "$BOOKMARKS_PID_FILE" ]; then
+                        pid=$(cat "$BOOKMARKS_PID_FILE")
                         # check if process is running
                         if ps -p "$pid" > /dev/null; then
                             bookmarks_log info "Server is running"
@@ -811,55 +803,48 @@ bookmarks() {
                     else
                         bookmarks_log info "Server not running"
                     fi
-                    popd &>/dev/null
                     return
                     ;;
                 stop)
-                    pid_file="${PWD}/server.pid"
-                    if [ ! -f "$pid_file" ]; then
+                    if [ ! -f "$BOOKMARKS_PID_FILE" ]; then
                         bookmarks_log info "Server not running"
                         return 0
                     fi
                     bookmarks_log info "Stopping server"
-                    pid=$(cat "$pid_file")
+                    pid=$(cat "$BOOKMARKS_PID_FILE")
                     kill "$pid"
-                    rm "$pid_file"
-                    popd &>/dev/null
+                    rm "$BOOKMARKS_PID_FILE"
                     return
                     ;;
                 restart)
                     bookmarks server stop
                     bookmarks server start
-                    popd &>/dev/null
                     return
                     ;;
                 start)
                     shift
                     local port="${1:-8000}"
-                    pid_file="${PWD}/server.pid"
-                    if [ -f "$pid_file" ]; then
-                        pid=$(cat "$pid_file")
+                    if [ -f "$BOOKMARKS_PID_FILE" ]; then
+                        pid=$(cat "$BOOKMARKS_PID_FILE")
                         # check if process is running
                         if ps -p "$pid" > /dev/null; then
                             bookmarks_log info "Server already running"
                             return 0
                         fi
-                        rm "$pid_file"
+                        rm "$BOOKMARKS_PID_FILE"
                     fi
                     bookmarks_log info "Starting server on port $port"
                     # Start the server in the background
                     python server.py "$port" &>/dev/null &
                     result=$?
                     pid=$!
-                    echo "$pid" > "$pid_file"
-                    disown $pid
+                    echo "$pid" > "$BOOKMARKS_PID_FILE"
+                    #disown $pid
 
-                    popd &>/dev/null
                     return
                     ;;
                 *)
                     bookmarks server start "$@"
-                    popd &>/dev/null
                     return
                     ;;
                 esac
@@ -890,7 +875,6 @@ bookmarks() {
                 output_file="bookmarks.html"
             fi
             html=$(bookmarks_export)
-            popd &>/dev/null
             echo
 
             if [ "${BOOKMARKS_DRY_RUN}" -ne 1 ]; then
@@ -908,7 +892,6 @@ bookmarks() {
                 input_file="bookmarks.html"
             fi
             bookmarks_import $input_file
-            popd &>/dev/null
             ;;
 
 
@@ -928,7 +911,6 @@ bookmarks() {
             bookmarks_log debug "URI: $uri"
             [ -z "$uri" ] && bookmarks_log critical "No URI found for file: $file" && return 1
             # if the URI is a directory we want to cd into it
-            popd &>/dev/null
 
             if is_directory "$uri"; then
                 bookmarks_log debug "cd \"$uri\""
@@ -947,7 +929,6 @@ bookmarks() {
             [ ! -f "$file" ] && bookmarks_log critical "File not found: $file" && return 1
             uri=$(cat "$file" | grep ^uri | cut -d ' ' -f 2)
             [ -z "$uri" ] && bookmarks_log critical "No URI found for file: $file" && return 1
-            popd &>/dev/null
             bookmarks_log info "Opening bookmark: $file"
 
             # check if inside of a pipe
@@ -961,7 +942,6 @@ bookmarks() {
             ;;
     esac
 
-    popd &>/dev/null
     return $result
 }
 
