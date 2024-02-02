@@ -275,7 +275,7 @@ fuzzy_file() {
 # Search all the files in the bookmarks directory for a string using fzf
 # and return the list of files that contain the string
 fuzzy_contents() {
-    local files=$(fdfind --type f -e md . "${$BOOKMARKS_DIR}")
+    local files=$(fdfind --type f -e md . "${BOOKMARKS_DIR}")
     echo "$files" | xargs grep "" | fzf --filter="$1" | grep -o '^[^:]\+' | awk '!a[$0]++{print}'
 }
 
