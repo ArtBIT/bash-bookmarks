@@ -12,7 +12,7 @@ import subprocess
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # set env debug level
-level = os.environ.get('DEBUG', 'INFO')
+level = int(os.environ.get('DEBUG', 'INFO'))
 logging.basicConfig(filename='server.log', level=level)
 
 PAGE_TEMPLATE = """
@@ -42,9 +42,9 @@ class Server:
         """
             Run the server
         """
-        server_address = ('', self.port)
-        httpd = HTTPServer(server_address, ServerHandler)
         logging.info('Server running on port {}'.format(self.port))
+        server_address = ('0.0.0.0', self.port)
+        httpd = HTTPServer(server_address, ServerHandler)
         httpd.serve_forever()
 
 class ServerHandler(BaseHTTPRequestHandler):
@@ -75,8 +75,14 @@ class ServerHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type', extension_to_content_type[extension])
             self.end_headers()
 
-            with open(static_dir + self.path, 'r') as f:
-                self.wfile.write(bytes(f.read(), 'utf-8'))
+            binary_extensions = ['.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2', '.ttf', '.eot', '.otf']
+            if extension in binary_extensions:
+                with open(static_dir + self.path, 'rb') as f:
+                    self.wfile.write(f.read())
+                return
+            else:
+                with open(static_dir + self.path, 'r') as f:
+                    self.wfile.write(bytes(f.read(), 'utf-8'))
             return
 
         elif self.path == '/' or self.path == '':
