@@ -842,11 +842,11 @@ bookmarks() {
                     fi
                     bookmarks_log info "Starting server on port $port"
                     # Start the server in the background
-                    python server.py "$port" &>/dev/null &
+                    python $SCRIPT_DIR/server.py "$port" &>/dev/null &
                     result=$?
                     pid=$!
                     echo "$pid" > "$BOOKMARKS_PID_FILE"
-                    #disown $pid
+                    disown $pid
 
                     return
                     ;;

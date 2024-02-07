@@ -23,6 +23,7 @@ PAGE_TEMPLATE = """
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Bookmarks</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css" />
+    <link rel="icon" type="image/png" href="/favicon.png">
   </head>
   <body>
     <main class="container">
@@ -51,10 +52,43 @@ class ServerHandler(BaseHTTPRequestHandler):
         """
             Handle GET request from client
         """
+        static_dir = os.path.dirname(os.path.realpath(__file__)) + '/static'
         if self.path.startswith('/search'):
             self.handle_search()
             return
-        logging.info('Invalid path')
+
+        elif os.path.exists(static_dir + self.path) and os.path.isfile(static_dir + self.path):
+            extension = os.path.splitext(self.path)[1]
+            extension_to_content_type = {
+                '.js': 'application/javascript',
+                '.json': 'application/json',
+                '.html': 'text/html',
+                '.svg': 'image/svg+xml',
+                '.css': 'text/css',
+                '.png': 'image/png',
+            }
+            if extension not in extension_to_content_type:
+                self.handle_error(404, 'Invalid extension ' + extension)
+                return
+
+            self.send_response(200)
+            self.send_header('Content-type', extension_to_content_type[extension])
+            self.end_headers()
+
+            with open(static_dir + self.path, 'r') as f:
+                self.wfile.write(bytes(f.read(), 'utf-8'))
+            return
+
+        elif self.path == '/' or self.path == '':
+            result = PAGE_TEMPLATE.format('Go to <a href="https://github.com/ArtBIT/bash-bookmarks">Bash bookmarks</a> for more info.')
+            # Send the result back to the client
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write(bytes(result, 'utf-8'))
+            return
+
+        logging.info('Invalid path ' + self.path)
         return
 
     def do_POST(self):
@@ -80,6 +114,15 @@ class ServerHandler(BaseHTTPRequestHandler):
             return
 
         return
+
+    def handle_error(self, code, message):
+        """
+            Handle error response
+        """
+        self.send_response(code)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(bytes(json.dumps({'error': message}), 'utf-8'))
 
     def handle_search(self):
         """
