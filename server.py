@@ -12,7 +12,7 @@ import subprocess
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # set env debug level
-level = int(os.environ.get('DEBUG', 'INFO'))
+level = os.environ.get('DEBUG', 'INFO')
 logging.basicConfig(filename='server.log', level=level)
 
 PAGE_TEMPLATE = """
@@ -55,6 +55,10 @@ class ServerHandler(BaseHTTPRequestHandler):
         static_dir = os.path.dirname(os.path.realpath(__file__)) + '/static'
         if self.path.startswith('/search'):
             self.handle_search()
+            return
+
+        elif self.path.startswith('/form'):
+            self.handle_form()
             return
 
         elif os.path.exists(static_dir + self.path) and os.path.isfile(static_dir + self.path):
@@ -120,6 +124,28 @@ class ServerHandler(BaseHTTPRequestHandler):
             return
 
         return
+
+    def handle_form(self):
+        
+        form = """
+        <form action="/add" method="post">
+            <label for="url">Url</label>
+            <input type="text" id="url" name="url" required>
+            <label for="title">Title</label>
+            <input type="text" id="title" name="title" required>
+            <label for="category">Category</label>
+            <input type="text" id="category" name="category" required>
+            <input type="submit" value="Add">
+        </form>
+
+        """
+        result = PAGE_TEMPLATE.format(form)
+        # Send the result back to the client
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(bytes(result, 'utf-8'))
+
 
     def handle_error(self, code, message):
         """

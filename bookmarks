@@ -1,5 +1,5 @@
 #!/bin/env bash
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+BOOKMARKS_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 # This is a bash script that allows you to manage your bookmarks from the command line.
 # It is meant to be used as a standalone script, but you can also source it from your .bashrc or .zshrc
@@ -107,7 +107,7 @@ bookmarks_log() {
     fi
 
     echo "[$level] $@" >&2
-    echo "[$(date +"%Y-%m-%d %H:%M:%S")] $@" >> $SCRIPT_DIR/bookmarks.log
+    echo "[$(date +"%Y-%m-%d %H:%M:%S")] $@" >> $BOOKMARKS_SCRIPT_DIR/bookmarks.log
 }
 
 # Decode URL encoded string
@@ -346,17 +346,17 @@ create_bookmark() {
                     # expand dot character
                     # if uri equals  to dot
                     if [[ "$uri" = "." ]]; then
-                        uri="${BOOKMARKS_OLDPWD}"
+                        uri="${PWD}"
                     elif [[ "$uri" = ".." ]]; then
-                        uri="${BOOKMARKS_OLDPWD}/.."
+                        uri="${PWD}/.."
                     # expand ~ character
                     elif [[ "$uri" =~ ^~ ]]; then
                         uri="${uri/#\~/$HOME}"
                     # expand relative paths
                     elif [[ "$uri" =~ ^\./ ]]; then
-                        uri="${uri/#./$BOOKMARKS_OLDPWD}"
+                        uri="${uri/#./$PWD}"
                     elif [[ "$uri" =~ ^\.\./ ]]; then
-                        uri="${uri/#../$BOOKMARKS_OLDPWD/..}"
+                        uri="${uri/#../$PWD/..}"
                     fi
                     uri=$(realpath "${uri#file://}")
                 fi
@@ -665,7 +665,7 @@ bookmarks() {
     BOOKMARKS_DRY_RUN=0
 
     # default env file
-    bookmarks_env "${SCRIPT_DIR}/.bookmarks.env"
+    bookmarks_env "${BOOKMARKS_SCRIPT_DIR}/.bookmarks.env"
 
     # read options
     while true; do
@@ -842,7 +842,7 @@ bookmarks() {
                     fi
                     bookmarks_log info "Starting server on port $port"
                     # Start the server in the background
-                    python $SCRIPT_DIR/server.py "$port" &>/dev/null &
+                    python $BOOKMARKS_SCRIPT_DIR/server.py "$port" &>/dev/null &
                     result=$?
                     pid=$!
                     echo "$pid" > "$BOOKMARKS_PID_FILE"
@@ -906,6 +906,12 @@ bookmarks() {
         help)
             shift
             bookmarks_usage
+            result=$?
+            ;;
+
+        log)
+            shift
+            cat $BOOKMARKS_SCRIPT_DIR/bookmarks.log | head -n 100 $@
             result=$?
             ;;
 
