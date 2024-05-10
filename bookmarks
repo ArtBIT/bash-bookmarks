@@ -1,6 +1,8 @@
 #!/bin/env bash
 BOOKMARKS_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
+VERSION="0.0.9"
+
 # This is a bash script that allows you to manage your bookmarks from the command line.
 # It is meant to be used as a standalone script, but you can also source it from your .bashrc or .zshrc
 # and use it as a library.
@@ -333,14 +335,19 @@ is_uri_accessible() {
 # If --name is not provided, it will default to a slugified version of the title
 create_bookmark() {
     local category=""
+    local tags=""
+    local title=""
+    local uri=""
+    local name=""
+
     while true; do
         case "$1" in
             --title)
-                local title=$(urldecode "$2")
+                title=$(urldecode "$2")
                 shift 2
                 ;;
             --uri)
-                local uri=$(urldecode "$2")
+                uri=$(urldecode "$2")
                 shift 2
                 if is_file "$uri"; then
                     # expand dot character
@@ -366,11 +373,11 @@ create_bookmark() {
                 shift 2
                 ;;
             --tags)
-                local tags=$(urldecode "$2")
+                tags=$(urldecode "$2")
                 shift 2
                 ;;
             --name)
-                local name=$(urldecode "$2")
+                name=$(urldecode "$2")
                 shift 2
                 ;;
             *)
@@ -410,8 +417,16 @@ create_bookmark() {
     if [ -z "$title" ]; then
         title=$(echo "$uri" | grep -oP '(?<=/)[^/]*$')
     fi
+
     if [ -z "$name" ]; then
-        local name="$title"
+        name="$title"
+    fi
+
+    # prepend the category to the tags
+    if [ ! -z "$tags" ]; then
+        tags="$category,$tags"
+    else
+        tags="$category"
     fi
 
     bookmarks_log info "Creating bookmark:"
@@ -707,6 +722,10 @@ bookmarks() {
             --verbose)
                 BOOKMARKS_DEBUG="verbose"
                 shift
+                ;;
+            --version)
+                echo "bookmarks v$VERSION"
+                return 0
                 ;;
             *)
                 break
