@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.gnome.Bookmarks.SearchProvider
+Exec=/usr/lib/gnome-bookmarks-search-provider/gnome-bookmarks-search-provider.py
+SystemdService=org.gnome.Bookmarks.SearchProvider.service

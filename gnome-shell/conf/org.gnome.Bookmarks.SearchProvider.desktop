@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Categories=GNOME;Bookmarks;
+Icon=url-copy
+Name=Bookmarks
+Comment=GNOME Shell search provider for bookmarks
+Terminal=false
+Type=Application
+OnlyShowIn=GNOME;

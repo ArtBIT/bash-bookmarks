@@ -801,7 +801,9 @@ bookmarks() {
                 if [[ "$tags" == "\"\"" ]]; then
                     tags=""
                 fi
-                results="$results{\"url\": \"$uri\", \"title\":\"$title\", \"tags\": [$tags], \"category\":\"$category\"},"
+                # get uniqueid of a file
+                id=$(echo "$file" | md5sum | cut -d ' ' -f 1)
+                results="$results{\"id\": \"$id\", \"url\": \"$uri\", \"title\":\"$title\", \"tags\": [$tags], \"category\":\"$category\"},"
             done
             # remove last comma
             results=$(echo "$results" | sed -e "s/,$//")

@@ -1,0 +1,7 @@
+[Unit]
+Description=Bookmarks search provider for GNOME Shell daemon
+
+[Service]
+Type=dbus
+BusName=org.gnome.Bookmarks.SearchProvider
+ExecStart=/usr/lib/gnome-bookmarks-search-provider/gnome-bookmarks-search-provider.py
