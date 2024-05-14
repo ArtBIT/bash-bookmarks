@@ -120,6 +120,10 @@ uri:
 	@update-desktop-database
 	@echo "Desktop file created."
 
+search-provider:
+	@echo "Registering bookmarks gnome search provider..."
+	@cd gnome; ./install.sh
+
 mime:
 	xdg-mime default bookmarks.desktop x-scheme-handler/bookmarks
 
