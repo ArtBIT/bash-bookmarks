@@ -6,16 +6,6 @@
 # make install
 # make uninstall
 #
-# Description:
-# This Makefile is used to install and uninstall bash-bookmarks.
-# It copies the bash-bookmarks script to /usr/local/bin/bash-bookmarks
-# and creates a symlink to it in /usr/local/bin/b
-# It also creates
-# a directory ~/.bash-bookmarks to store the bookmarks.
-# The uninstall target removes the script and the symlink.
-# The install target also sets the permissions of the script to 755.
-# The uninstall target also optionally removes the ~/.bash-bookmarks directory.
-#
 # License: MIT
 #
 
@@ -31,12 +21,6 @@ SCRIPT_NAME=bookmarks
 # The path to the script
 SCRIPT_PATH=$(INSTALL_DIR)/$(SCRIPT_NAME)
 #
-# The name of the symlink
-SYMLINK_NAME=b
-
-# The path to the symlink
-SYMLINK_PATH=/usr/local/bin/$(SYMLINK_NAME)
-
 # The path to the uninstall script
 UNINSTALL_SCRIPT_PATH=$(INSTALL_DIR)/uninstall-$(SCRIPT_NAME)
 
@@ -47,9 +31,9 @@ APPLICATIIONS_DIR=~/.local/share/applications
 
 all: install-all
 
-install: files symlink service uri done
+install: files rc service uri done
 
-install-base: files symlink done
+install-base: files rc done
 
 files:
 	@echo "Installing $(SCRIPT_NAME)..."
@@ -64,25 +48,15 @@ files:
 
 	@cp $(SCRIPT_NAME) $(SCRIPT_PATH)
 	@cp .bookmarks.env $(INSTALL_DIR)
+	@cp .bookmarksrc $(INSTALL_DIR)
 	@chmod 755 $(SCRIPT_PATH)
 
-symlink:
-	@echo "Creating symlink..."
-	@# if the symlink already exists, ask to remove it
-	@if [ -L $(SYMLINK_PATH) ]; then \
-		echo "The symlink $(SYMLINK_PATH) already exists."; \
-		read -p "Do you want to remove it? [y/N] " -n 1 -r; \
-		echo; \
-		if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-			sudo rm -f $(SYMLINK_PATH); \
-		else \
-			echo "Aborting."; \
-			exit 1; \
-		fi; \
+rc:
+	@echo "Adding rc to .bashrc..."
+	@if ! grep -q "source $(INSTALL_DIR)/.bookmarksrc" ~/.bashrc; then \
+		echo "source $(INSTALL_DIR)/.bookmarksrc" >> ~/.bashrc; \
+		echo "sed -i '/source $(INSTALL_DIR)\/.bookmarksrc/d' ~/.bashrc" >> $(UNINSTALL_SCRIPT_PATH); \
 	fi
-
-	@sudo ln -s $(SCRIPT_PATH) $(SYMLINK_PATH)
-	@echo "sudo rm -f $(SYMLINK_PATH)" >> $(UNINSTALL_SCRIPT_PATH)
 
 server:
 	@echo "Copying server files..."
