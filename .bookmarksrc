@@ -4,3 +4,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 source $SCRIPT_DIR/bookmarks
 
 alias b="bookmarks"
+alias be="b edit"
+alias bo="b open"
+alias ba="b add"
+alias bd="b delete"
+alias bp="b paste"
