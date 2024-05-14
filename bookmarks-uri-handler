@@ -1,6 +1,5 @@
 #! /usr/bin/env bash
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 if [ ! -z "$1" ]; then
     # extract the protocol
     protocol="$(echo $1 | grep :// | sed -e's,^\(.*://\).*,\1,g')"
@@ -31,7 +30,6 @@ if [ ! -z "$1" ]; then
         tags="${tags:1:${#tags}-2}"
     fi
 
-    #$SCRIPT_DIR/bookmarks add --title "$title" --uri "$uri" --category "$category" --tags "$tags"
-    gnome-terminal -- /bin/bash -c "$SCRIPT_DIR/bookmarks add --title \"$title\" --uri \"$uri\" --category \"$category\" --tags \"$tags\"; exec /bin/bash"
+    BOOKMARKS_INSTALL_DIR=/usr/local/bash-bookmarks
+    gnome-terminal -- /bin/bash -c "$BOOKMARKS_INSTALL_DIR/bookmarks add --title \"$title\" --uri \"$uri\" --category \"$category\" --tags \"$tags\"; exec /bin/bash"
 fi
-

@@ -1,7 +1,6 @@
 #!/bin/env bash
-BOOKMARKS_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-VERSION="0.0.9"
+VERSION="0.1.0"
 
 # This is a bash script that allows you to manage your bookmarks from the command line.
 # It is meant to be used as a standalone script, but you can also source it from your .bashrc or .zshrc
@@ -20,15 +19,22 @@ VERSION="0.0.9"
 #   grep            For filtering files by content
 #
 
+BOOKMARKS_DATA_DIR=~/.bash-bookmarks
+BOOKMARKS_SCRIPT_DIR=$HOME/.local/share/bash-bookmarks
+BOOKMARKS_DEFAULT_ENV="${BOOKMARKS_SCRIPT_DIR}/.bookmarks.env"
+BOOKMARKS_SERVICE_NAME="bookmarks.service"
 BOOKMARKS_CURL_OPTIONS="-s --location --connect-timeout 30 --max-time 30"
-BOOKMARKS_PID_FILE="/tmp/bookmarks-server.pid"
 
 bookmarks_env() {
-    local env_file="${1:-$HOME/.bookmarks.env}"
+    local env_file="${1:-$BOOKMARKS_DEFAULT_ENV}"
     if [ -f "${env_file}" ]; then
-        bookmarks_log debug "Using env file: $env_file"
         source "${env_file}"
     fi
+    # make sure BOOKMARKS_DIR exists
+    if [ ! -d "$BOOKMARKS_DIR" ]; then
+        mkdir -p "$BOOKMARKS_DIR"
+    fi
+    bookmarks_log debug "Using env file: $env_file"
 }
 
 bookmarks_usage() {
@@ -41,7 +47,7 @@ bookmarks_usage() {
     echo "  open [query]    Open a bookmark file in the browser"
     echo "  delete [query]  Delete a bookmark file"
     echo "  suggest [query] Suggest bookmarks by title, tags, etc."
-    echo "  server [port]   Start a server to search bookmarks by title, tags, etc."
+    echo "  server [start|stop|status]   Start a server to search bookmarks by title, tags, etc."
     echo "  export [file]   Export bookmarks to a HTML file"
     echo "  import [file]   Import bookmarks from a HTML file"
     echo ""
@@ -109,7 +115,9 @@ bookmarks_log() {
     fi
 
     echo "[$level] $@" >&2
-    echo "[$(date +"%Y-%m-%d %H:%M:%S")] $@" >> $BOOKMARKS_SCRIPT_DIR/bookmarks.log
+    # log messages will be saved to a log file
+    BOOKMARKS_LOG_FILE="${BOOKMARKS_LOG_FILE:-$BOOKMARKS_DIR/bookmarks.log}"
+    echo "[$(date +"%Y-%m-%d %H:%M:%S")] $@" >> $BOOKMARKS_LOG_FILE
 }
 
 # Decode URL encoded string
@@ -680,7 +688,7 @@ bookmarks() {
     BOOKMARKS_DRY_RUN=0
 
     # default env file
-    bookmarks_env "${BOOKMARKS_SCRIPT_DIR}/.bookmarks.env"
+    bookmarks_env "${BOOKMARKS_DEFAULT_ENV}"
 
     # read options
     while true; do
@@ -817,58 +825,21 @@ bookmarks() {
             shift
             case "$1" in
                 status)
-                    if [ -f "$BOOKMARKS_PID_FILE" ]; then
-                        pid=$(cat "$BOOKMARKS_PID_FILE")
-                        # check if process is running
-                        if ps -p "$pid" > /dev/null; then
-                            bookmarks_log info "Server is running"
-                        else
-                            bookmarks_log info "Server not running"
-                        fi
-                    else
-                        bookmarks_log info "Server not running"
-                    fi
+                    systemctl --user status ${BOOKMARKS_SERVICE_NAME}
                     return
                     ;;
 
                 stop)
-                    if [ ! -f "$BOOKMARKS_PID_FILE" ]; then
-                        bookmarks_log info "Server not running"
-                        return 0
-                    fi
-                    bookmarks_log info "Stopping server"
-                    pid=$(cat "$BOOKMARKS_PID_FILE")
-                    kill "$pid"
-                    rm "$BOOKMARKS_PID_FILE"
+                    systemctl --user stop ${BOOKMARKS_SERVICE_NAME}
                     return
                     ;;
 
                 restart)
-                    bookmarks server stop
-                    bookmarks server start
-                    return
+                    systemctl --user restart ${BOOKMARKS_SERVICE_NAME}
                     ;;
 
                 start)
-                    shift
-                    local port="${1:-8000}"
-                    if [ -f "$BOOKMARKS_PID_FILE" ]; then
-                        pid=$(cat "$BOOKMARKS_PID_FILE")
-                        # check if process is running
-                        if ps -p "$pid" > /dev/null; then
-                            bookmarks_log info "Server already running"
-                            return 0
-                        fi
-                        rm "$BOOKMARKS_PID_FILE"
-                    fi
-                    bookmarks_log info "Starting server on port $port"
-                    # Start the server in the background
-                    python $BOOKMARKS_SCRIPT_DIR/server.py "$port" &>/dev/null &
-                    result=$?
-                    pid=$!
-                    echo "$pid" > "$BOOKMARKS_PID_FILE"
-                    disown $pid
-
+                    systemctl --user start ${BOOKMARKS_SERVICE_NAME}
                     return
                     ;;
 
@@ -932,7 +903,7 @@ bookmarks() {
 
         log)
             shift
-            cat $BOOKMARKS_SCRIPT_DIR/bookmarks.log | head -n 100 $@
+            cat $BOOKMARKS_DIR/bookmarks.log | head -n 100 $@
             result=$?
             ;;
 
@@ -982,7 +953,6 @@ bookmarks() {
 
 # if not sourced, run main
 if [ "$0" = "${BASH_SOURCE}" ]; then
-    bookmarks_log debug "Running main: $@"
     bookmarks "$@"
 fi
 

@@ -107,36 +107,19 @@ You can export your Pinterest pins to a bookmarks.html file using a script like 
 - [glow](https://github.com/charmbracelet/glow)
 - [fd](https://github.com/sharkdp/fd)
 
-# Installation
-
-Let's create a `bookmarks://...` protocol handler in Ubuntu as an example
-
-1. First we create a bookmarks launcher script which will handle `bookmarks://...` uri.
-
-We already have that in [./bookmarks-uri-handler](./bookmarks-uri-handler) file.
-
-2. Next, we register the gnome `.desktop` app
-
-We do that by simply copying [./bookmarks.desktop](./bookmarks.desktop) file to one of these locations:
-
- - `/usr/share/applications/bookmarks.desktop` or
- - `$HOME/.local/share/applications/bookmarks.desktop`
-
-3. Refresh mime types database
-
-In the `.dektop` file, the line `MimeType=x-scheme-handler/bookmarks` registers `bookmarks://` scheme handler, but to make it work we should update the mime types database cache. 
-
-To do that, we run these commands:
+# Install
 
 ```
-sudo update-desktop-database
+sudo make install
 ```
 
-If that does not work, we manually register the handler:
+
+# Uninstall
 
 ```
-xdg-mime default bookmarks.desktop x-scheme-handler/bookmarks
+sudo make uninstall
 ```
+
 
 4. Test
 

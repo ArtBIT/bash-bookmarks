@@ -21,8 +21,6 @@ from gi.repository import GLib
 search_bus_name = "org.gnome.Shell.SearchProvider2"
 sbn = dict(dbus_interface=search_bus_name)
 
-bookmarks_cmd = path_join(expanduser("~"), "Documents", "bookmarks", "bookmarks")
-
 
 class SearchBookmarksService(dbus.service.Object):
     """
@@ -40,6 +38,22 @@ class SearchBookmarksService(dbus.service.Object):
             getenv("DISABLE_NOTIFICATIONS", "false").lower() == "true"
         )
         self.results = {}
+
+
+        # read environment variable
+        if getenv("BOOKMARKS_CMD"):
+            self.cmd = getenv("BOOKMARKS_CMD")
+        else:
+            self.cmd = path_join(expanduser("~"), "Documents", "bookmarks", "bookmarks")
+
+        # check if self.cmd is executable
+        if not self.cmd:
+            print("Error: bookmarks_CMD environment variable not set.")
+            self.cmd = None
+
+        if not subprocess.call(["which", self.cmd]):
+            print(f"Error: {self.cmd} not found.")
+            self.cmd = None
 
     @dbus.service.method(in_signature="sasu", **sbn)
     def ActivateResult(self, identifier, terms, timestamp):
@@ -161,9 +175,11 @@ class SearchBookmarksService(dbus.service.Object):
         """
         Perform bookmarks search using the commandline tool
         """
+        if self.cmd is None:
+            return []
         search_value = ' '.join(terms)
         # search all the files in the directory tree using commandline
-        command = [bookmarks_cmd, 'suggest', search_value]
+        command = [self.cmd, 'suggest', search_value]
         result = subprocess.check_output(command)
         try:
             result = json.loads(result)
@@ -175,7 +191,7 @@ class SearchBookmarksService(dbus.service.Object):
 if __name__ == "__main__":
     DBusGMainLoop(set_as_default=True)
     provider = SearchBookmarksService()
-    #provider.notify("Bookmarks Search Provider", bookmarks_cmd)
+    #provider.notify("Bookmarks Search Provider", self.cmd)
     #results = provider.GetResultMetas(provider.GetInitialResultSet(sys.argv[1:]))
     #print(results)
     # results = {result['url']: result for result in results}

@@ -13,7 +13,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # set env debug level
 level = os.environ.get('DEBUG', 'INFO')
-logging.basicConfig(filename='server.log', level=level)
+logging.basicConfig(filename='bookmarks-server.log', level=level)
 
 PAGE_TEMPLATE = """
 <!DOCTYPE html>
@@ -169,7 +169,12 @@ class ServerHandler(BaseHTTPRequestHandler):
         command_dir = os.path.dirname(os.path.realpath(__file__))
         command = [command_dir + '/bookmarks', 'suggest', search_value]
         logging.info('Executing command: {}'.format(command))
-        result = subprocess.check_output(command)
+        try:
+            result = subprocess.check_output(command)
+        except subprocess.CalledProcessError as e:
+            logging.error('Error searching for {}'.format(search_value))
+            self.output_result({'error': 'Error searching for {}'.format(search_value)}, 'json')
+            return
 
         logging.debug('Result: {}'.format(result))
         # convert response text to json

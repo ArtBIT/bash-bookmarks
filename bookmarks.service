@@ -1,0 +1,25 @@
+# Create a bash-bookamrks service that will automatically start the server.py
+# script when the system boots up. This is done by creating a systemd service.
+# Systemd service is used to manage services in Linux. It keeps track of the
+# services and starts them when the system boots up.
+#
+# Enable the service to start on boot:
+# sudo systemctl enable bash-bookmarks
+# Start the service:
+# sudo systemctl start bash-bookmarks
+# Check the status of the service:
+# sudo systemctl status bash-bookmarks
+
+[Unit]
+Description=Bash-Bookmarks Service
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+ExecStart=/usr/bin/python3 %h/.local/share/bash-bookmarks/bookmarks-server.py
+
+[Install]
+WantedBy=default.target
