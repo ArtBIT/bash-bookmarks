@@ -113,25 +113,7 @@ You can export your Pinterest pins to a bookmarks.html file using a script like 
 sudo make install
 ```
 
-
-# Uninstall
-
-```
-sudo make uninstall
-```
-
-
-4. Test
-
-Now everything should work. To test that it works from terminal, launch this command:
-
-```
-xdg-open 'bookmarks://?title=Test&uri=https%3A%2F%2Fgoogle.com&category=search&tags=[]'
-```
-
-This should add a new bookmark to the bookmarks directory.
-
-5. Configure `bookmarks://` protocol handler in Firefox 
+## Configure `bookmarks://` protocol handler in Firefox 
 
 Go to `about:config`
 
@@ -141,13 +123,20 @@ Select `boolean`, add it, and set it to `false`.
 
 Firefox should now delegate this protocol handler to the system handler.
 
-6. Configure `bookmarks://` protocol handler in Chrome
+## Configure `bookmarks://` protocol handler in Chrome
 
 Go to `chrome://settings/handlers`
 
 Search for `bookmarks`
 
 Select `bookmarks://` protocol handler and set it to `Always allow`
+
+# Uninstall
+
+```
+sudo make uninstall
+```
+
 
 # Bookmarklet
 

@@ -47,7 +47,9 @@ APPLICATIIONS_DIR=~/.local/share/applications
 
 all: install-all
 
-install: files symlink done
+install: files symlink service uri done
+
+install-base: files symlink done
 
 files:
 	@echo "Installing $(SCRIPT_NAME)..."
@@ -81,8 +83,6 @@ symlink:
 
 	@sudo ln -s $(SCRIPT_PATH) $(SYMLINK_PATH)
 	@echo "sudo rm -f $(SYMLINK_PATH)" >> $(UNINSTALL_SCRIPT_PATH)
-
-install-all: files symlink service uri done
 
 server:
 	@echo "Copying server files..."
@@ -120,12 +120,16 @@ uri:
 	@update-desktop-database
 	@echo "Desktop file created."
 
+	
+
 search-provider:
 	@echo "Registering bookmarks gnome search provider..."
 	@cd gnome; ./install.sh
 
 mime:
 	xdg-mime default bookmarks.desktop x-scheme-handler/bookmarks
+	@# Test
+	@# xdg-open 'bookmarks://?title=Test&uri=https%3A%2F%2Fgoogle.com&category=search&tags=[]'
 
 done:
 	@echo "Installation done."
