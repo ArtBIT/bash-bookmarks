@@ -1,11 +1,21 @@
 #!/bin/env bash
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+export BOOKMARKS_SERVER_URL="http://192.168.82.100:9080"
+export BOOKMARKS_DEBUG="true"
 source $SCRIPT_DIR/bookmarks
 
-alias b="bookmarks"
-alias be="b edit"
-alias bo="b open"
-alias ba="b add"
-alias bd="b delete"
-alias bp="b paste"
+# Wrapper function to handle cd command directly
+bookmarks() {
+    res=$(bookmarks_cmd "$@")
+    exit_code=$?
+    if [ $exit_code -eq 0 ] && [ -n "$res" ]; then
+        if [[ "$res" =~ ^cd\  ]]; then
+            eval "$res"
+        else
+            echo "$res"
+        fi
+    fi
+}
+
+alias b=bookmarks
