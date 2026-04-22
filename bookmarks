@@ -80,7 +80,9 @@ fuzzy_search() {
     [ -z "$1" ] && bookmarks_log error "No query provided for fuzzy search" && return 1
 
     # Fetch JSON data from the server
-    local response=$(curl -s "$BOOKMARKS_SERVER_URL/search?q=$1&format=json")
+	local request_url="$BOOKMARKS_SERVER_URL/search?q=$1&format=json"
+	bookmarks_log debug "Fetching data from server with URL: $request_url"
+	local response=$(curl -s "$request_url")
     
     # Validate JSON response
     if ! echo "$response" | jq empty >/dev/null 2>&1; then
@@ -92,14 +94,22 @@ fuzzy_search() {
     local tmpfile=$(mktemp)
     echo "$response" > "$tmpfile"
 
-    # Extract url and title for fzf display (id included for uniqueness)
-    selected=$(echo "$response" | jq -r '.[] | "\(.id)#\(.url)#\(.title)"' | fzf -i --delimiter='#' --preview "jq -r '.[] | select(.id == \"{1}\")' \"$tmpfile\"")
+    # id is field 1 (hidden via --with-nth=2,3), url is field 2, title is field 3
+    local delimiter='|'
+    local selected
+    selected=$(echo "$response" | jq -r --arg d "$delimiter" \
+        '.[] | "\(.id)\($d) \(.url) \($d) \(.title)"' | \
+        fzf -i --delimiter="$delimiter" --with-nth=2,3 \
+            --preview "jq -r --arg id {1} '.[] | select(.id == \$id)' \"$tmpfile\"")
 
-    # If a selection was made, retrieve the full JSON object
     if [ -n "$selected" ]; then
-        local selected_id=$(echo "$selected" | cut -d'#' -f1)
+        local selected_id
+        selected_id=$(echo "$selected" | cut -d"$delimiter" -f1)
         jq -r ".[] | select(.id == \"$selected_id\")" "$tmpfile"
     fi
+
+
+
 
     # Clean up temporary file
     rm -f "$tmpfile"
@@ -156,6 +166,7 @@ is_local_file() {
 
 is_uri_accessible() {
     local uri="$1"
+    bookmarks_log debug "Checking accessibility of URI: $uri"
     if is_url "$uri"; then
         http_status=$(curl $BOOKMARKS_CURL_OPTIONS --user-agent "${BOOKMARKS_USER_AGENT}" --head "$uri" | head -n 1 | grep "HTTP/[0-9.]\+ [12345].." | cut -d " " -f 2)
         bookmarks_log debug "HTTP status code: $http_status"
