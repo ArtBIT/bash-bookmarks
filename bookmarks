@@ -98,8 +98,8 @@ fuzzy_search() {
     local delimiter='|'
     local selected
     selected=$(echo "$response" | jq -r --arg d "$delimiter" \
-        '.[] | "\(.id)\($d) \(.url) \($d) \(.title)"' | \
-        fzf -i --delimiter="$delimiter" --with-nth=2,3 \
+		'.[] | "\(.id)\($d) \(.url) \($d) \(.title) \($d) \(.category) \($d) \(.tags)"' | \
+        fzf -i --delimiter="$delimiter" --with-nth=2,3,4,5 \
             --preview "jq -r --arg id {1} '.[] | select(.id == \$id)' \"$tmpfile\"")
 
     if [ -n "$selected" ]; then
