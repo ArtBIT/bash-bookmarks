@@ -32,6 +32,7 @@ bookmarks_usage() {
     echo "Commands:"
     echo "  help            Show this help"
     echo "  add             Add a new bookmark [ options: --title, --uri, --category, --tags ]"
+    echo "  remove [query]  Select a bookmark with fzf and remove it"
     echo "  suggest [query] Suggest bookmarks by title, tags, etc."
     echo "  open [query]    Open a bookmark in the browser"
     echo "  cd [query]      Change directory to a bookmarked folder"
@@ -62,6 +63,7 @@ bookmarks_usage() {
     echo "  bookmarks accounting        # Changes to directory (auto-detected)"
     echo "  bookmarks github.com        # Opens URL in browser (auto-detected)"
     echo "  b accounting                # Same as above using short alias"
+    echo "  bookmarks remove github     # Select and remove bookmark by query"
 }
 
 # Check if server is available
@@ -268,6 +270,85 @@ add_bookmark() {
     fi
 }
 
+# Remove a bookmark selected interactively by query
+remove_bookmark() {
+    local query="$1"
+
+    if [ -z "$query" ]; then
+        bookmarks_log error "Query is required"
+        echo "Usage: bookmarks remove <query>"
+        return 1
+    fi
+
+    local json
+    json=$(fuzzy_search "$query")
+
+    if [ -z "$json" ]; then
+        bookmarks_log error "No bookmark selected"
+        return 1
+    fi
+
+    local bookmark_id
+    local bookmark_title
+    local bookmark_url
+    local bookmark_project
+    local bookmark_tags
+    bookmark_id=$(echo "$json" | jq -r '.id // empty')
+    bookmark_title=$(echo "$json" | jq -r '.title // empty')
+    bookmark_url=$(echo "$json" | jq -r '.url // empty')
+    bookmark_project=$(echo "$json" | jq -r '.project // .category // empty')
+    bookmark_tags=$(echo "$json" | jq -r '
+        if (.tags | type) == "array" then
+            (.tags | join(","))
+        else
+            (.tags // empty)
+        end
+    ')
+
+    if [ -z "$bookmark_id" ]; then
+        bookmarks_log error "Selected bookmark is missing an id"
+        return 1
+    fi
+
+    echo "Selected bookmark:" >&2
+    echo "  id:      $bookmark_id" >&2
+    echo "  title:   $bookmark_title" >&2
+    echo "  uri:     $bookmark_url" >&2
+    echo "  project: $bookmark_project" >&2
+    echo "  tags:    $bookmark_tags" >&2
+    echo "" >&2
+
+    local confirm
+    read -r -p "Remove this bookmark? [y/N] " confirm
+    case "$confirm" in
+        y|Y|yes|YES)
+            ;;
+        *)
+            bookmarks_log info "Removal canceled"
+            return 0
+            ;;
+    esac
+
+    bookmarks_log info "Removing bookmark id: $bookmark_id"
+
+    # Build JSON body safely without relying on jq.
+    local escaped_id
+    escaped_id=$(printf '%s' "$bookmark_id" | sed 's/\\/\\\\/g; s/"/\\"/g')
+
+    local response
+    response=$(curl -s -X DELETE "$BOOKMARKS_SERVER_URL/remove" \
+        -H "Content-Type: application/json" \
+        -d "{\"id\":\"$escaped_id\"}")
+
+    if echo "$response" | grep -q '"error"'; then
+        bookmarks_log error "Failed to remove bookmark: $response"
+        return 1
+    else
+        bookmarks_log info "Bookmark removed successfully"
+        echo "$response"
+    fi
+}
+
 # Suggest bookmarks
 suggest_bookmarks() {
     local query="$1"
@@ -401,6 +482,13 @@ bookmarks_cmd() {
                 return 1
             fi
             add_bookmark "$@"
+            ;;
+
+        remove)
+            if ! check_server; then
+                return 1
+            fi
+            remove_bookmark "$@"
             ;;
             
         suggest)
