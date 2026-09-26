@@ -9,6 +9,8 @@ Over the years I've accumulated over 10k bookmarks in Pocket. Navigating that am
 
 To make it work, I've created a custom protocol handler for `bookmarks://...` uri scheme, and a bookmaklet that will allow me to quickly add bookmarks to the database from the browser. I've later made a [Firefox Add-On](https://github.com/ArtBIT/bash-bookmarks-firefox-add-on) to make things even more seamless.
 
+On the phone, bash-bookmarks comes with a [web UI that installs as an Android app](#web-ui-and-android-app-pwa), so you can save links straight from the Android share sheet.
+
 A really handy feature of bash-bookmarks is the ability to bookmark local files or filepaths. This is especially useful when you have a lot of projects and you want to quickly navigate to a specific file.
 
 For an example, I have a bookmark called `bash-bookmarks` which points to the `README.md` file in this repository. To open that file, I simply type `be bash-bookmarks` in the terminal and the file will open in my default editor.
@@ -157,6 +159,8 @@ If you source'd `.bookmarksrc` the server should auto-start, otherwise you need 
 The Firefox Add-On uses these two endpoints to automatically add bash-bookmark whenever a Firefox bookmark is created, and to suggest bookmarks directly from the address-bar by registering `bb` keyword, which when used in the address-bar, fetches the bookmarks results from the server.
 
 # Web UI and Android app (PWA)
+
+![Web UI: searching bookmarks, saving a link shared from another app, and dark mode](docs/pwa-screenshot.png)
 
 The server also hosts a mobile friendly web UI at `http://localhost:8000/` for searching, adding and removing bookmarks. It talks to the bookmarks server configured in `BOOKMARKS_SERVER_URL` (default `http://localhost:9080`, set it in `bookmarks.service` or the environment).
 
