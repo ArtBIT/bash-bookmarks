@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#1e1549" />
+    <title>Bash Bookmarks</title>
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <img src="/icon.svg" alt="" class="logo" />
+      <h1>Bookmarks</h1>
+      <button id="add-button" class="primary" type="button" aria-label="Add bookmark">+ Add</button>
+    </header>
+
+    <main>
+      <div class="search">
+        <input id="search" type="search" placeholder="Search bookmarks" autocomplete="off" autofocus />
+      </div>
+      <p id="status" class="status" role="status"></p>
+      <ul id="results" class="results"></ul>
+    </main>
+
+    <dialog id="add-dialog">
+      <form id="add-form" method="dialog">
+        <h2>Add bookmark</h2>
+        <label>URL <input name="url" type="text" inputmode="url" required /></label>
+        <label>Title <input name="title" type="text" /></label>
+        <label>Category <input name="category" type="text" list="categories" placeholder="unsorted" /></label>
+        <label>Tags <input name="tags" type="text" placeholder="Separate tags with commas" /></label>
+        <p id="add-error" class="error" role="alert"></p>
+        <div class="actions">
+          <button type="button" id="add-cancel">Cancel</button>
+          <button type="submit" class="primary" id="add-save">Save</button>
+        </div>
+      </form>
+    </dialog>
+    <datalist id="categories"></datalist>
+
+    <div id="toast" class="toast" role="status" hidden></div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
