@@ -157,7 +157,7 @@ input::placeholder { color: var(--muted); opacity: 0.8; }
 
 /* Results */
 
-.results { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; transition: opacity 150ms var(--ease); }
+.results { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; transition: opacity 150ms var(--ease); }
 .results.loading { opacity: 0.55; }
 
 .result {
