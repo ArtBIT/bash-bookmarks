@@ -242,13 +242,14 @@ class ServerHandler(BaseHTTPRequestHandler):
         tags = body.get('tags', '')
         if isinstance(tags, list):
             tags = ','.join(tags)
-        data = urllib.parse.urlencode({
+        # JSON rather than a form body: the upstream server does not URL-decode form fields
+        data = json.dumps({
             'url': url,
             'title': str(body.get('title') or url).strip(),
             'category': str(body.get('category') or 'unsorted').strip(),
             'tags': str(tags).strip(),
         }).encode('utf-8')
-        self.upstream('POST', '/add', data, 'application/x-www-form-urlencoded')
+        self.upstream('POST', '/add', data, 'application/json')
 
     def handle_api_remove(self):
         body = self.read_json_body()

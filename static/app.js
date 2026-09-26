@@ -175,6 +175,14 @@
       return;
     }
 
+    // The bookmarks server ignores queries shorter than 3 characters
+    if (query.length < 3) {
+      results.replaceChildren();
+      status.textContent = '';
+      showEmpty('Keep typing', 'Type at least 3 characters to search.');
+      return;
+    }
+
     empty.hidden = true;
     status.textContent = 'Searching…';
     if (results.querySelector('.result:not(.skeleton)')) results.classList.add('loading');
