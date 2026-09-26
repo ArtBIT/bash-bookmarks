@@ -8,24 +8,8 @@
 import os
 import json
 import logging
-import ssl
 import subprocess
-import urllib.error
-import urllib.parse
-import urllib.request
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-
-# Upstream bookmarks server that actually stores the bookmarks
-BOOKMARKS_SERVER_URL = os.environ.get('BOOKMARKS_SERVER_URL', 'http://localhost:9080').rstrip('/')
-
-# Optional TLS, required for installing the web UI as a PWA from a non-localhost origin
-TLS_CERT = os.environ.get('BOOKMARKS_TLS_CERT', '')
-TLS_KEY = os.environ.get('BOOKMARKS_TLS_KEY', '')
-
-STATIC_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'static')
-
-# Paths that serve the web UI (/share is the PWA share target)
-APP_PATHS = ['/', '/share', '/index.html']
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # set env debug level
 level = os.environ.get('DEBUG', 'INFO')
@@ -60,12 +44,7 @@ class Server:
         """
         logging.info('Server running on port {}'.format(self.port))
         server_address = ('0.0.0.0', self.port)
-        httpd = ThreadingHTTPServer(server_address, ServerHandler)
-        if TLS_CERT and TLS_KEY:
-            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-            context.load_cert_chain(TLS_CERT, TLS_KEY)
-            httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
-            logging.info('TLS enabled')
+        httpd = HTTPServer(server_address, ServerHandler)
         httpd.serve_forever()
 
 class ServerHandler(BaseHTTPRequestHandler):
@@ -73,12 +52,8 @@ class ServerHandler(BaseHTTPRequestHandler):
         """
             Handle GET request from client
         """
-        path = urllib.parse.urlsplit(self.path).path
-        if path.startswith('/api/search'):
-            self.handle_api_search()
-            return
-
-        elif self.path.startswith('/search'):
+        static_dir = os.path.dirname(os.path.realpath(__file__)) + '/static'
+        if self.path.startswith('/search'):
             self.handle_search()
             return
 
@@ -86,74 +61,56 @@ class ServerHandler(BaseHTTPRequestHandler):
             self.handle_form()
             return
 
-        elif path in APP_PATHS:
-            self.serve_static('/index.html')
+        elif os.path.exists(static_dir + self.path) and os.path.isfile(static_dir + self.path):
+            extension = os.path.splitext(self.path)[1]
+            extension_to_content_type = {
+                '.js': 'application/javascript',
+                '.json': 'application/json',
+                '.html': 'text/html',
+                '.svg': 'image/svg+xml',
+                '.css': 'text/css',
+                '.png': 'image/png',
+            }
+            if extension not in extension_to_content_type:
+                self.handle_error(404, 'Invalid extension ' + extension)
+                return
+
+            self.send_response(200)
+            self.send_header('Content-type', extension_to_content_type[extension])
+            self.end_headers()
+
+            binary_extensions = ['.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2', '.ttf', '.eot', '.otf']
+            if extension in binary_extensions:
+                with open(static_dir + self.path, 'rb') as f:
+                    self.wfile.write(f.read())
+                return
+            else:
+                with open(static_dir + self.path, 'r') as f:
+                    self.wfile.write(bytes(f.read(), 'utf-8'))
             return
 
-        elif self.serve_static(path):
+        elif self.path == '/' or self.path == '':
+            result = PAGE_TEMPLATE.format('Go to <a href="https://github.com/ArtBIT/bash-bookmarks">Bash bookmarks</a> for more info.')
+            # Send the result back to the client
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write(bytes(result, 'utf-8'))
             return
 
         logging.info('Invalid path ' + self.path)
-        self.handle_error(404, 'Not found')
         return
-
-    def serve_static(self, path):
-        """
-            Serve a file from the static directory, returns False if not found
-        """
-        file_path = os.path.realpath(os.path.join(STATIC_DIR, path.lstrip('/')))
-        if not file_path.startswith(STATIC_DIR + os.sep) or not os.path.isfile(file_path):
-            return False
-
-        extension = os.path.splitext(file_path)[1]
-        extension_to_content_type = {
-            '.js': 'application/javascript',
-            '.json': 'application/json',
-            '.webmanifest': 'application/manifest+json',
-            '.html': 'text/html; charset=utf-8',
-            '.svg': 'image/svg+xml',
-            '.css': 'text/css',
-            '.png': 'image/png',
-        }
-        if extension not in extension_to_content_type:
-            return False
-
-        with open(file_path, 'rb') as f:
-            content = f.read()
-        self.send_response(200)
-        self.send_header('Content-type', extension_to_content_type[extension])
-        self.send_header('Cache-Control', 'no-cache')
-        if path == '/service-worker.js':
-            self.send_header('Service-Worker-Allowed', '/')
-        self.end_headers()
-        self.wfile.write(content)
-        return True
-
 
     def do_POST(self):
         """
             Handle POST request from client
         """
         logging.info('POST request')
-        if self.path.startswith('/api/add'):
-            self.handle_api_add()
-            return
-
         if self.path.startswith('/add'):
             self.handle_add()
             return
 
-        self.handle_error(404, 'Not found')
-
-    def do_DELETE(self):
-        """
-            Handle DELETE request from client
-        """
-        if self.path.startswith('/api/remove'):
-            self.handle_api_remove()
-            return
-
-        self.handle_error(404, 'Not found')
+        return
 
     def do_OPTIONS(self):
         """
@@ -189,75 +146,6 @@ class ServerHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(bytes(result, 'utf-8'))
 
-
-    def upstream(self, method, path, data=None, content_type=None):
-        """
-            Forward a request to the upstream bookmarks server and relay its JSON response
-        """
-        request = urllib.request.Request(BOOKMARKS_SERVER_URL + path, data=data, method=method)
-        if content_type:
-            request.add_header('Content-Type', content_type)
-        logging.info('Upstream {} {}'.format(method, path))
-        try:
-            with urllib.request.urlopen(request, timeout=15) as response:
-                status, body = response.status, response.read()
-        except urllib.error.HTTPError as e:
-            status, body = e.code, e.read()
-        except (urllib.error.URLError, OSError) as e:
-            logging.error('Upstream error: {}'.format(e))
-            self.handle_error(502, 'Bookmarks server unavailable at {}'.format(BOOKMARKS_SERVER_URL))
-            return
-
-        try:
-            json.loads(body)
-        except ValueError:
-            body = json.dumps({'error': 'Invalid response from bookmarks server'}).encode('utf-8')
-            status = 502
-
-        self.send_response(status)
-        self.send_header('Content-type', 'application/json')
-        self.send_header('Cache-Control', 'no-store')
-        self.end_headers()
-        self.wfile.write(body)
-
-    def read_json_body(self):
-        length = int(self.headers.get('Content-Length') or 0)
-        try:
-            return json.loads(self.rfile.read(length).decode('utf-8') or '{}')
-        except ValueError:
-            return None
-
-    def handle_api_search(self):
-        query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('q', [''])[0]
-        params = urllib.parse.urlencode({'q': query, 'format': 'json'})
-        self.upstream('GET', '/search?' + params)
-
-    def handle_api_add(self):
-        body = self.read_json_body()
-        if not isinstance(body, dict) or not str(body.get('url', '')).strip():
-            self.handle_error(400, 'url is required')
-            return
-
-        url = str(body.get('url')).strip()
-        tags = body.get('tags', '')
-        if isinstance(tags, list):
-            tags = ','.join(tags)
-        data = urllib.parse.urlencode({
-            'url': url,
-            'title': str(body.get('title') or url).strip(),
-            'category': str(body.get('category') or 'unsorted').strip(),
-            'tags': str(tags).strip(),
-        }).encode('utf-8')
-        self.upstream('POST', '/add', data, 'application/x-www-form-urlencoded')
-
-    def handle_api_remove(self):
-        body = self.read_json_body()
-        if not isinstance(body, dict) or not body.get('id'):
-            self.handle_error(400, 'id is required')
-            return
-
-        data = json.dumps({'id': str(body.get('id'))}).encode('utf-8')
-        self.upstream('DELETE', '/remove', data, 'application/json')
 
     def handle_error(self, code, message):
         """

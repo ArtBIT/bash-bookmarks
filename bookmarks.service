@@ -19,10 +19,6 @@ StartLimitIntervalSec=0
 Type=simple
 Restart=always
 RestartSec=1
-# Upstream server that stores the bookmarks, and optional TLS for the PWA
-Environment=BOOKMARKS_SERVER_URL=http://localhost:9080
-#Environment=BOOKMARKS_TLS_CERT=/path/to/cert.pem
-#Environment=BOOKMARKS_TLS_KEY=/path/to/key.pem
 ExecStart=/usr/bin/python3 %h/.local/share/bash-bookmarks/bookmarks-server.py
 
 [Install]
