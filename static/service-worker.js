@@ -1,5 +1,5 @@
 // Caches the app shell so the UI opens offline; API calls always go to the network.
-const CACHE = 'bash-bookmarks-v1';
+const CACHE = 'bash-bookmarks-v2';
 const SHELL = [
   '/',
   '/app.css',
