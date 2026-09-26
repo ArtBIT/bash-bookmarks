@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#1e1549" />
+    <title>Bash Bookmarks</title>
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <img src="/icon.svg" alt="" class="logo" />
+      <h1>Bookmarks</h1>
+      <button id="add-button" class="primary" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        Add
+      </button>
+    </header>
+
+    <main>
+      <div class="search">
+        <div class="search-field">
+          <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+          <input id="search" type="search" placeholder="Search bookmarks" autocomplete="off" enterkeyhint="go" aria-label="Search bookmarks" autofocus />
+          <button id="search-clear" class="icon-button" type="button" aria-label="Clear search" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+          </button>
+        </div>
+      </div>
+      <p id="status" class="status" role="status"></p>
+      <ul id="results" class="results"></ul>
+
+      <div id="empty" class="empty" hidden>
+        <img src="/icon.svg" alt="" />
+        <h2 id="empty-title"></h2>
+        <p id="empty-text"></p>
+      </div>
+    </main>
+
+    <dialog id="add-dialog" aria-labelledby="add-title">
+      <form id="add-form" method="dialog">
+        <div class="grabber" aria-hidden="true"></div>
+        <h2 id="add-title">Add bookmark</h2>
+        <label>URL <input name="url" type="text" inputmode="url" autocomplete="off" required /></label>
+        <label>Title <input name="title" type="text" autocomplete="off" /></label>
+        <label>Category <input name="category" type="text" list="categories" autocomplete="off" placeholder="unsorted" /></label>
+        <label>Tags <input name="tags" type="text" autocomplete="off" placeholder="Separate tags with commas" /></label>
+        <p id="add-error" class="error" role="alert"></p>
+        <div class="actions">
+          <button type="button" id="add-cancel">Cancel</button>
+          <button type="submit" class="primary" id="add-save"><span class="spinner" aria-hidden="true"></span><span>Save</span></button>
+        </div>
+      </form>
+    </dialog>
+    <datalist id="categories"></datalist>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
